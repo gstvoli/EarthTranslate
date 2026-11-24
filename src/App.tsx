@@ -1,5 +1,10 @@
 import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import {
+  matchesShortcut,
+  shortcutFromEvent,
+  validateShortcutConfiguration,
+} from "./lib/shortcuts";
 import { defaultSettings, Settings, TranslationResponse } from "./types";
 
 const settingsKey = "earthtranslate.settings";
@@ -10,22 +15,6 @@ function loadSettings(): Settings {
   } catch {
     return defaultSettings;
   }
-}
-
-function shortcutFromEvent(event: KeyboardEvent): string {
-  const key = event.key === " " ? "Space" : event.key.length === 1 ? event.key.toUpperCase() : event.key;
-  const parts = [
-    event.ctrlKey && "Ctrl",
-    event.altKey && "Alt",
-    event.shiftKey && "Shift",
-    event.metaKey && "Meta",
-    !["Control", "Alt", "Shift", "Meta"].includes(event.key) && key,
-  ].filter(Boolean);
-  return parts.join("+");
-}
-
-function matchesShortcut(event: KeyboardEvent, shortcut: string): boolean {
-  return shortcutFromEvent(event).toLowerCase() === shortcut.toLowerCase();
 }
 
 function ShortcutInput({
@@ -127,12 +116,9 @@ export default function App() {
       draftSettings.copyShortcut,
       draftSettings.hideShortcut,
     ];
-    if (shortcuts.some((shortcut) => !shortcut.trim())) {
-      setError("Todos os atalhos precisam ter uma combinação.");
-      return;
-    }
-    if (new Set(shortcuts.map((shortcut) => shortcut.toLowerCase())).size !== shortcuts.length) {
-      setError("Use combinações diferentes para cada atalho.");
+    const validationError = validateShortcutConfiguration(shortcuts);
+    if (validationError) {
+      setError(validationError);
       return;
     }
 
