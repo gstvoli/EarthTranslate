@@ -4,6 +4,7 @@ dist/
 
 # Artefatos Tauri/Rust
 src-tauri/target/
+src-tauri/gen/
 
 # Ambiente e segredos
 .env
