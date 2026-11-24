@@ -18,6 +18,17 @@ Aplicativo desktop para tradução rápida, acionado por um atalho global e usad
 
 Consulte [docs/PLANO_DE_ACAO.md](docs/PLANO_DE_ACAO.md) para o plano, riscos e marcos.
 
+## Executar em desenvolvimento
+
+Pré-requisitos no Windows: Node.js 20+, Rust estável com o toolchain MSVC e as dependências do [Tauri para Windows](https://v2.tauri.app/start/prerequisites/).
+
+```bash
+npm install
+npm run tauri:dev
+```
+
+Por padrão, o MVP utiliza o endpoint público do LibreTranslate. Ele pode ser alterado na tela de configurações para utilizar um serviço próprio ou corporativo.
+
 ## Atalhos iniciais
 
 | Atalho | Ação |
