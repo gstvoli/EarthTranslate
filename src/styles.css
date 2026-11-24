@@ -143,6 +143,7 @@ textarea::placeholder { color: #6f8476; }
 
 .compact-mode {
   min-height: 100vh;
+  overflow: hidden;
   padding: 16px;
 }
 
@@ -151,6 +152,7 @@ textarea::placeholder { color: #6f8476; }
   flex-direction: column;
   gap: 14px;
   height: calc(100vh - 32px);
+  overflow: hidden;
 }
 
 .compact-topbar {
@@ -192,7 +194,7 @@ textarea::placeholder { color: #6f8476; }
   padding: 14px;
 }
 
-.compact-result output { color: #eff5e8; font-size: 1.05rem; line-height: 1.35; overflow: auto; }
+.compact-result output { color: #eff5e8; font-size: 1.05rem; line-height: 1.35; overflow: hidden; }
 .compact-result .text-button { align-self: flex-end; margin: 4px -8px -6px; }
 .compact-footer { align-items: center; color: #94a890; display: flex; font-size: .7rem; justify-content: space-between; }
 
