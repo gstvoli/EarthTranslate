@@ -1,11 +1,16 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 use std::{fs, path::PathBuf, sync::Mutex};
 
+use keyring::Entry;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
 const DEFAULT_GLOBAL_SHORTCUT: &str = "Ctrl+Alt+T";
+const CREDENTIAL_SERVICE: &str = "EarthTranslate";
+const CREDENTIAL_USER: &str = "translation-api-key";
 
 struct AppState {
     global_shortcut: Mutex<String>,
@@ -100,6 +105,26 @@ fn save_global_shortcut(app: &AppHandle, shortcut: &str) -> Result<(), String> {
         .map_err(|error| format!("Não foi possível salvar as configurações: {error}"))
 }
 
+fn translation_api_key() -> Option<String> {
+    Entry::new(CREDENTIAL_SERVICE, CREDENTIAL_USER)
+        .ok()
+        .and_then(|entry| entry.get_password().ok())
+        .filter(|key| !key.trim().is_empty())
+}
+
+#[tauri::command]
+fn save_translation_api_key(api_key: String) -> Result<(), String> {
+    if api_key.trim().is_empty() {
+        return Err("Informe uma chave de API para salvá-la.".into());
+    }
+
+    let entry = Entry::new(CREDENTIAL_SERVICE, CREDENTIAL_USER)
+        .map_err(|error| format!("Não foi possível abrir o cofre de credenciais: {error}"))?;
+    entry
+        .set_password(api_key.trim())
+        .map_err(|error| format!("Não foi possível salvar a chave de API: {error}"))
+}
+
 #[tauri::command]
 fn get_global_shortcut(state: State<AppState>) -> Result<String, String> {
     state
@@ -167,22 +192,28 @@ async fn translate(request: TranslationRequest) -> Result<TranslationResponse, S
         request.endpoint.trim()
     };
 
+    let mut body = json!({
+        "q": request.text,
+        "source": request.source,
+        "target": request.target,
+        "format": "text"
+    });
+    if let Some(api_key) = translation_api_key() {
+        body["api_key"] = json!(api_key);
+    }
+
     let response = reqwest::Client::new()
         .post(endpoint)
-        .json(&json!({
-            "q": request.text,
-            "source": request.source,
-            "target": request.target,
-            "format": "text"
-        }))
+        .json(&body)
         .send()
         .await
         .map_err(|error| format!("Não foi possível alcançar o serviço de tradução: {error}"))?;
 
     if !response.status().is_success() {
+        let status = response.status();
+        let details = response.text().await.unwrap_or_default();
         return Err(format!(
-            "O serviço de tradução retornou o status {}.",
-            response.status()
+            "O serviço de tradução retornou o status {status}. {details}",
         ));
     }
 
@@ -227,6 +258,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             get_global_shortcut,
             set_global_shortcut,
+            save_translation_api_key,
             hide_main_window,
             translate
         ])

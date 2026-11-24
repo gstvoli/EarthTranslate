@@ -48,6 +48,7 @@ export default function App() {
   const [settings, setSettings] = useState<Settings>(loadSettings);
   const [draftSettings, setDraftSettings] = useState<Settings>(settings);
   const [showSettings, setShowSettings] = useState(false);
+  const [apiKeyInput, setApiKeyInput] = useState("");
   const [text, setText] = useState("");
   const [translation, setTranslation] = useState("");
   const [detectedLanguage, setDetectedLanguage] = useState<string>();
@@ -124,8 +125,12 @@ export default function App() {
 
     try {
       await invoke("set_global_shortcut", { shortcut: draftSettings.globalShortcut });
+      if (apiKeyInput.trim()) {
+        await invoke("save_translation_api_key", { apiKey: apiKeyInput.trim() });
+      }
       localStorage.setItem(settingsKey, JSON.stringify(draftSettings));
       setSettings(draftSettings);
+      setApiKeyInput("");
       setShowSettings(false);
       setError("");
     } catch (reason) {
@@ -179,6 +184,7 @@ export default function App() {
           aria-label="Abrir configurações"
           onClick={() => {
             setDraftSettings(settings);
+            setApiKeyInput("");
             setShowSettings(true);
           }}
         >
@@ -277,8 +283,18 @@ export default function App() {
                 <span>Endpoint LibreTranslate</span>
                 <input value={draftSettings.endpoint} onChange={(event) => setDraftSettings({ ...draftSettings, endpoint: event.target.value })} />
               </label>
+              <label className="field field-wide">
+                <span>Chave de API LibreTranslate</span>
+                <input
+                  type="password"
+                  value={apiKeyInput}
+                  autoComplete="off"
+                  placeholder="Deixe vazio para manter a chave já salva"
+                  onChange={(event) => setApiKeyInput(event.target.value)}
+                />
+              </label>
             </div>
-            <p className="settings-note">Clique em um campo de atalho e pressione a nova combinação. O atalho global precisa conter ao menos um modificador.</p>
+            <p className="settings-note">Clique em um campo de atalho e pressione a nova combinação. O atalho global precisa conter ao menos um modificador. A chave de API é armazenada no Gerenciador de Credenciais do Windows, não no navegador local.</p>
             <div className="modal-actions">
               <button className="secondary-button" type="button" onClick={() => setDraftSettings(defaultSettings)}>
                 Restaurar padrões

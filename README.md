@@ -27,7 +27,9 @@ npm install
 npm run tauri:dev
 ```
 
-Por padrão, o MVP utiliza o endpoint público do LibreTranslate. Ele pode ser alterado na tela de configurações para utilizar um serviço próprio ou corporativo.
+Por padrão, o MVP utiliza o endpoint público do LibreTranslate. Esse serviço exige uma chave de API, que deve ser cadastrada em **Configurações**. A chave é salva no Gerenciador de Credenciais do Windows; ela não é incluída no armazenamento local do navegador. O endpoint pode ser alterado para utilizar um serviço próprio ou corporativo.
+
+Consulte [docs/API.md](docs/API.md) para o contrato de chamada ao serviço de tradução.
 
 ## Atalhos iniciais
 
