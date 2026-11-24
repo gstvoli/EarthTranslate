@@ -7,6 +7,7 @@ export const providerDefaultEndpoints: Record<TranslationProvider, string> = {
 
 export type Settings = {
   globalShortcut: string;
+  quickTranslateShortcut: string;
   translateShortcut: string;
   copyShortcut: string;
   hideShortcut: string;
@@ -22,6 +23,7 @@ export type TranslationResponse = {
 
 export const defaultSettings: Settings = {
   globalShortcut: "Ctrl+Alt+T",
+  quickTranslateShortcut: "Ctrl+Alt+Q",
   translateShortcut: "Ctrl+Enter",
   copyShortcut: "Ctrl+Shift+C",
   hideShortcut: "Escape",

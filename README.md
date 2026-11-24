@@ -46,6 +46,7 @@ O arquivo `release/EarthTranslate-<versão>-portable.zip` conterá apenas o exec
 | Atalho | Ação |
 | --- | --- |
 | `Ctrl+Alt+T` | Mostrar, focar ou ocultar o EarthTranslate |
+| `Ctrl+Alt+Q` | Abrir a tradução rápida em uma janela compacta |
 | `Ctrl+Enter` | Traduzir o texto digitado |
 | `Ctrl+Alt+G` | Alternar o idioma de destino |
 | `Esc` | Ocultar a janela |

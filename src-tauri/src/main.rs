@@ -5,21 +5,24 @@ use std::{fs, path::PathBuf, sync::Mutex};
 use keyring::Entry;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Emitter, LogicalSize, Manager, Size, State};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
 const DEFAULT_GLOBAL_SHORTCUT: &str = "Ctrl+Alt+T";
+const DEFAULT_QUICK_TRANSLATE_SHORTCUT: &str = "Ctrl+Alt+Q";
 const CREDENTIAL_SERVICE: &str = "EarthTranslate";
 const CREDENTIAL_USER: &str = "translation-api-key";
 
 struct AppState {
-    global_shortcut: Mutex<String>,
+    shortcuts: Mutex<NativeSettings>,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct NativeSettings {
     global_shortcut: String,
+    #[serde(default = "default_quick_translate_shortcut")]
+    quick_translate_shortcut: String,
 }
 
 #[derive(Deserialize)]
@@ -74,9 +77,34 @@ fn toggle_main_window(app: &AppHandle) {
     if window.is_visible().unwrap_or(false) {
         let _ = window.hide();
     } else {
-        let _ = window.show();
-        let _ = window.set_focus();
+        open_standard_window(app);
     }
+}
+
+fn open_standard_window(app: &AppHandle) {
+    let Some(window) = app.get_webview_window("main") else {
+        return;
+    };
+
+    let _ = window.set_size(Size::Logical(LogicalSize::new(960.0, 590.0)));
+    let _ = window.show();
+    let _ = window.set_focus();
+    let _ = app.emit("earthtranslate:open-standard", ());
+}
+
+fn open_quick_window(app: &AppHandle) {
+    let Some(window) = app.get_webview_window("main") else {
+        return;
+    };
+
+    let _ = window.set_size(Size::Logical(LogicalSize::new(420.0, 250.0)));
+    let _ = window.show();
+    let _ = window.set_focus();
+    let _ = app.emit("earthtranslate:open-quick", ());
+}
+
+fn default_quick_translate_shortcut() -> String {
+    DEFAULT_QUICK_TRANSLATE_SHORTCUT.into()
 }
 
 fn parse_shortcut(value: &str) -> Result<Shortcut, String> {
@@ -99,26 +127,51 @@ fn settings_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(directory.join("settings.json"))
 }
 
-fn read_global_shortcut(app: &AppHandle) -> Result<String, String> {
+fn default_shortcut_settings() -> NativeSettings {
+    NativeSettings {
+        global_shortcut: DEFAULT_GLOBAL_SHORTCUT.into(),
+        quick_translate_shortcut: DEFAULT_QUICK_TRANSLATE_SHORTCUT.into(),
+    }
+}
+
+fn read_shortcut_settings(app: &AppHandle) -> Result<NativeSettings, String> {
     let path = settings_path(app)?;
     match fs::read_to_string(path) {
         Ok(contents) => serde_json::from_str::<NativeSettings>(&contents)
-            .map(|settings| settings.global_shortcut)
             .map_err(|error| format!("Não foi possível ler as configurações: {error}")),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            Ok(DEFAULT_GLOBAL_SHORTCUT.into())
-        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(default_shortcut_settings()),
         Err(error) => Err(format!("Não foi possível ler as configurações: {error}")),
     }
 }
 
-fn save_global_shortcut(app: &AppHandle, shortcut: &str) -> Result<(), String> {
-    let contents = serde_json::to_string_pretty(&NativeSettings {
-        global_shortcut: shortcut.into(),
-    })
-    .map_err(|error| format!("Não foi possível preparar as configurações: {error}"))?;
+fn save_shortcut_settings(app: &AppHandle, shortcuts: &NativeSettings) -> Result<(), String> {
+    let contents = serde_json::to_string_pretty(shortcuts)
+        .map_err(|error| format!("Não foi possível preparar as configurações: {error}"))?;
     fs::write(settings_path(app)?, contents)
         .map_err(|error| format!("Não foi possível salvar as configurações: {error}"))
+}
+
+fn validate_shortcuts(shortcuts: &NativeSettings) -> Result<(), String> {
+    if shortcuts
+        .global_shortcut
+        .eq_ignore_ascii_case(&shortcuts.quick_translate_shortcut)
+    {
+        return Err("Use combinações diferentes para os atalhos globais.".into());
+    }
+
+    parse_shortcut(&shortcuts.global_shortcut)?;
+    parse_shortcut(&shortcuts.quick_translate_shortcut)?;
+    Ok(())
+}
+
+fn register_shortcuts(app: &AppHandle, shortcuts: &NativeSettings) -> Result<(), String> {
+    let manager = app.global_shortcut();
+    manager
+        .register(parse_shortcut(&shortcuts.global_shortcut)?)
+        .map_err(|error| format!("O atalho principal não está disponível: {error}"))?;
+    manager
+        .register(parse_shortcut(&shortcuts.quick_translate_shortcut)?)
+        .map_err(|error| format!("O atalho rápido não está disponível: {error}"))
 }
 
 fn translation_api_key() -> Option<String> {
@@ -142,28 +195,39 @@ fn save_translation_api_key(api_key: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn get_global_shortcut(state: State<AppState>) -> Result<String, String> {
+fn get_shortcut_settings(state: State<AppState>) -> Result<NativeSettings, String> {
     state
-        .global_shortcut
+        .shortcuts
         .lock()
-        .map(|shortcut| shortcut.clone())
+        .map(|shortcuts| shortcuts.clone())
         .map_err(|_| "Não foi possível acessar as configurações de atalho.".into())
 }
 
 #[tauri::command]
-fn set_global_shortcut(
+fn set_global_shortcuts(
     app: AppHandle,
     state: State<AppState>,
-    shortcut: String,
+    global_shortcut: String,
+    quick_translate_shortcut: String,
 ) -> Result<(), String> {
-    let requested_shortcut = shortcut.trim().to_string();
-    let shortcut = parse_shortcut(&requested_shortcut)?;
-    let mut active_shortcut = state
-        .global_shortcut
+    let requested_shortcuts = NativeSettings {
+        global_shortcut: global_shortcut.trim().to_string(),
+        quick_translate_shortcut: quick_translate_shortcut.trim().to_string(),
+    };
+    validate_shortcuts(&requested_shortcuts)?;
+
+    let mut active_shortcuts = state
+        .shortcuts
         .lock()
         .map_err(|_| "Não foi possível acessar as configurações de atalho.".to_string())?;
 
-    if active_shortcut.eq_ignore_ascii_case(&requested_shortcut) {
+    if active_shortcuts
+        .global_shortcut
+        .eq_ignore_ascii_case(&requested_shortcuts.global_shortcut)
+        && active_shortcuts
+            .quick_translate_shortcut
+            .eq_ignore_ascii_case(&requested_shortcuts.quick_translate_shortcut)
+    {
         return Ok(());
     }
 
@@ -172,20 +236,19 @@ fn set_global_shortcut(
         .unregister_all()
         .map_err(|error| format!("Não foi possível atualizar os atalhos: {error}"))?;
 
-    if let Err(error) = manager.register(shortcut) {
-        let previous = parse_shortcut(&active_shortcut)?;
-        let _ = manager.register(previous);
-        return Err(format!("Este atalho não está disponível: {error}"));
-    }
-
-    if let Err(error) = save_global_shortcut(&app, &requested_shortcut) {
+    if let Err(error) = register_shortcuts(&app, &requested_shortcuts) {
         let _ = manager.unregister_all();
-        let previous = parse_shortcut(&active_shortcut)?;
-        let _ = manager.register(previous);
+        let _ = register_shortcuts(&app, &active_shortcuts);
         return Err(error);
     }
 
-    *active_shortcut = requested_shortcut;
+    if let Err(error) = save_shortcut_settings(&app, &requested_shortcuts) {
+        let _ = manager.unregister_all();
+        let _ = register_shortcuts(&app, &active_shortcuts);
+        return Err(error);
+    }
+
+    *active_shortcuts = requested_shortcuts;
     Ok(())
 }
 
@@ -309,32 +372,44 @@ fn main() {
     tauri::Builder::default()
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
-                .with_handler(|app, _shortcut, event| {
+                .with_handler(|app, shortcut, event| {
                     if event.state == ShortcutState::Pressed {
-                        toggle_main_window(app);
+                        let is_quick_shortcut = app
+                            .state::<AppState>()
+                            .shortcuts
+                            .lock()
+                            .ok()
+                            .and_then(|shortcuts| {
+                                parse_shortcut(&shortcuts.quick_translate_shortcut).ok()
+                            })
+                            .is_some_and(|configured| shortcut == &configured);
+
+                        if is_quick_shortcut {
+                            open_quick_window(app);
+                        } else {
+                            toggle_main_window(app);
+                        }
                     }
                 })
                 .build(),
         )
         .setup(|app| {
-            let saved_shortcut = read_global_shortcut(app.handle())
-                .unwrap_or_else(|_| DEFAULT_GLOBAL_SHORTCUT.into());
-            let global_shortcut = if parse_shortcut(&saved_shortcut).is_ok() {
-                saved_shortcut
+            let saved_shortcuts =
+                read_shortcut_settings(app.handle()).unwrap_or_else(|_| default_shortcut_settings());
+            let shortcuts = if validate_shortcuts(&saved_shortcuts).is_ok() {
+                saved_shortcuts
             } else {
-                DEFAULT_GLOBAL_SHORTCUT.into()
+                default_shortcut_settings()
             };
-            let initial_shortcut =
-                parse_shortcut(&global_shortcut).map_err(std::io::Error::other)?;
-            app.global_shortcut().register(initial_shortcut)?;
+            register_shortcuts(app.handle(), &shortcuts).map_err(std::io::Error::other)?;
             app.manage(AppState {
-                global_shortcut: Mutex::new(global_shortcut),
+                shortcuts: Mutex::new(shortcuts),
             });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            get_global_shortcut,
-            set_global_shortcut,
+            get_shortcut_settings,
+            set_global_shortcuts,
             save_translation_api_key,
             hide_main_window,
             translate

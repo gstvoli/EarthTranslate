@@ -35,5 +35,9 @@ export function validateShortcutConfiguration(shortcuts: string[]): string | nul
     return "O atalho global precisa conter Ctrl, Alt, Shift ou Meta.";
   }
 
+  if (!shortcuts[1].includes("+")) {
+    return "O atalho rápido precisa conter Ctrl, Alt, Shift ou Meta.";
+  }
+
   return null;
 }

@@ -43,21 +43,27 @@ describe("matchesShortcut", () => {
 });
 
 describe("validateShortcutConfiguration", () => {
-  const valid = ["Ctrl+Alt+T", "Ctrl+Enter", "Ctrl+Shift+C", "Escape"];
+  const valid = ["Ctrl+Alt+T", "Ctrl+Alt+Q", "Ctrl+Enter", "Ctrl+Shift+C", "Escape"];
 
   it("aceita uma configuração válida", () => {
     expect(validateShortcutConfiguration(valid)).toBeNull();
   });
 
   it("rejeita atalhos duplicados", () => {
-    expect(validateShortcutConfiguration(["Ctrl+Alt+T", "Ctrl+Alt+T", "Ctrl+C", "Escape"])).toBe(
+    expect(validateShortcutConfiguration(["Ctrl+Alt+T", "Ctrl+Alt+T", "Ctrl+C", "Ctrl+Shift+C", "Escape"])).toBe(
       "Use combinações diferentes para cada atalho.",
     );
   });
 
   it("rejeita um atalho global sem modificador", () => {
-    expect(validateShortcutConfiguration(["T", "Ctrl+Enter", "Ctrl+C", "Escape"])).toBe(
+    expect(validateShortcutConfiguration(["T", "Ctrl+Alt+Q", "Ctrl+Enter", "Ctrl+C", "Escape"])).toBe(
       "O atalho global precisa conter Ctrl, Alt, Shift ou Meta.",
+    );
+  });
+
+  it("rejeita um atalho rápido sem modificador", () => {
+    expect(validateShortcutConfiguration(["Ctrl+Alt+T", "Q", "Ctrl+Enter", "Ctrl+C", "Escape"])).toBe(
+      "O atalho rápido precisa conter Ctrl, Alt, Shift ou Meta.",
     );
   });
 });

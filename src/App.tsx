@@ -1,5 +1,6 @@
 import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import {
   matchesShortcut,
   shortcutFromEvent,
@@ -14,6 +15,7 @@ import {
 } from "./types";
 
 const settingsKey = "earthtranslate.settings";
+type Layout = "standard" | "compact";
 
 function loadSettings(): Settings {
   try {
@@ -70,23 +72,49 @@ export default function App() {
   const [isTranslating, setIsTranslating] = useState(false);
   const [error, setError] = useState("");
   const [copyFeedback, setCopyFeedback] = useState("");
+  const [layout, setLayout] = useState<Layout>("standard");
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
+  const quickInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    void invoke<string>("get_global_shortcut")
-      .then((globalShortcut) => {
-        setSettings((current) => ({ ...current, globalShortcut }));
+    void invoke<Pick<Settings, "globalShortcut" | "quickTranslateShortcut">>("get_shortcut_settings")
+      .then((shortcuts) => {
+        setSettings((current) => ({ ...current, ...shortcuts }));
       })
       .catch((reason) => {
-        setError(`Não foi possível carregar o atalho global: ${String(reason)}`);
+        setError(`Não foi possível carregar os atalhos globais: ${String(reason)}`);
       });
   }, []);
 
   useEffect(() => {
-    const focusInput = () => textAreaRef.current?.focus();
+    const focusInput = () => {
+      if (layout === "compact") {
+        quickInputRef.current?.focus();
+      } else {
+        textAreaRef.current?.focus();
+      }
+    };
     window.addEventListener("focus", focusInput);
     focusInput();
     return () => window.removeEventListener("focus", focusInput);
+  }, [layout]);
+
+  useEffect(() => {
+    const unregisterQuick = listen("earthtranslate:open-quick", () => {
+      setLayout("compact");
+      setText("");
+      setTranslation("");
+      setDetectedLanguage(undefined);
+      setError("");
+    });
+    const unregisterStandard = listen("earthtranslate:open-standard", () => {
+      setLayout("standard");
+    });
+
+    return () => {
+      void unregisterQuick.then((unlisten) => unlisten());
+      void unregisterStandard.then((unlisten) => unlisten());
+    };
   }, []);
 
   async function translate(event?: FormEvent) {
@@ -129,6 +157,7 @@ export default function App() {
   async function saveSettings() {
     const shortcuts = [
       draftSettings.globalShortcut,
+      draftSettings.quickTranslateShortcut,
       draftSettings.translateShortcut,
       draftSettings.copyShortcut,
       draftSettings.hideShortcut,
@@ -140,7 +169,10 @@ export default function App() {
     }
 
     try {
-      await invoke("set_global_shortcut", { shortcut: draftSettings.globalShortcut });
+      await invoke("set_global_shortcuts", {
+        globalShortcut: draftSettings.globalShortcut,
+        quickTranslateShortcut: draftSettings.quickTranslateShortcut,
+      });
       if (apiKeyInput.trim()) {
         await invoke("save_translation_api_key", { apiKey: apiKeyInput.trim() });
       }
@@ -150,7 +182,7 @@ export default function App() {
       setShowSettings(false);
       setError("");
     } catch (reason) {
-      setError(`O atalho global não pôde ser salvo: ${String(reason)}`);
+      setError(`Os atalhos globais não puderam ser salvos: ${String(reason)}`);
     }
   }
 
@@ -168,7 +200,7 @@ export default function App() {
     });
   }
 
-  function handleEditorKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+  function handleEditorKeyDown(event: KeyboardEvent<HTMLTextAreaElement | HTMLInputElement>) {
     if (matchesShortcut(event, settings.translateShortcut)) {
       event.preventDefault();
       void translate();
@@ -195,85 +227,118 @@ export default function App() {
     return () => window.removeEventListener("keydown", handler);
   });
 
+  function openSettings() {
+    setDraftSettings(settings);
+    setApiKeyInput("");
+    setShowSettings(true);
+  }
+
   return (
-    <main className="app-shell">
-      <header className="topbar">
-        <div>
-          <p className="eyebrow">EARTHTRANSLATE</p>
-          <h1>Tradução rápida, sem sair do ritmo.</h1>
-        </div>
-        <button
-          className="icon-button"
-          type="button"
-          aria-label="Abrir configurações"
-          onClick={() => {
-            setDraftSettings(settings);
-            setApiKeyInput("");
-            setShowSettings(true);
-          }}
-        >
-          ⚙
-        </button>
-      </header>
-
-      <form onSubmit={translate} className="translator">
-        <section className="panel input-panel">
-          <div className="panel-heading">
-            <label htmlFor="source-text">Texto original</label>
-            <span>Detectar idioma</span>
+    <main className={`app-shell ${layout === "compact" ? "compact-mode" : ""}`}>
+      {layout === "compact" ? (
+        <section className="compact-translator">
+          <header className="compact-topbar">
+            <p className="eyebrow">TRADUÇÃO RÁPIDA</p>
+            <button className="icon-button" type="button" aria-label="Abrir configurações" onClick={openSettings}>⚙</button>
+          </header>
+          <form onSubmit={translate}>
+            <div className="compact-entry">
+              <input
+                ref={quickInputRef}
+                value={text}
+                onChange={(event) => setText(event.target.value)}
+                onKeyDown={handleEditorKeyDown}
+                placeholder="Digite uma palavra..."
+                aria-label="Texto para traduzir"
+              />
+              <button className="primary-button" type="submit" disabled={!text.trim() || isTranslating}>
+                {isTranslating ? "..." : "Traduzir"}
+              </button>
+            </div>
+          </form>
+          <div className="compact-result">
+            <output>{translation || error || "A tradução aparecerá aqui."}</output>
+            {translation && (
+              <button className="text-button" type="button" onClick={() => void copyTranslation()}>
+                Copiar
+              </button>
+            )}
           </div>
-          <textarea
-            id="source-text"
-            ref={textAreaRef}
-            value={text}
-            onChange={(event) => setText(event.target.value)}
-            onKeyDown={handleEditorKeyDown}
-            placeholder="Digite ou cole algo para traduzir..."
-            spellCheck
-          />
-          <div className="panel-footer">
-            <span>{text.length} caracteres</span>
-            <button className="primary-button" type="submit" disabled={!text.trim() || isTranslating}>
-              {isTranslating ? "Traduzindo..." : `Traduzir · ${settings.translateShortcut}`}
-            </button>
-          </div>
+          <footer className="compact-footer">
+            <span>{settings.quickTranslateShortcut}</span>
+            <button className="link-button" type="button" onClick={() => void hideApplication()}>Ocultar</button>
+          </footer>
         </section>
+      ) : (
+        <>
+          <header className="topbar">
+            <div>
+              <p className="eyebrow">EARTHTRANSLATE</p>
+              <h1>Tradução rápida, sem sair do ritmo.</h1>
+            </div>
+            <button className="icon-button" type="button" aria-label="Abrir configurações" onClick={openSettings}>⚙</button>
+          </header>
 
-        <section className="panel result-panel">
-          <div className="panel-heading">
-            <span>Tradução</span>
-            <select
-              aria-label="Idioma de destino"
-              value={settings.targetLanguage}
-              onChange={(event) => updateTargetLanguage(event.target.value)}
-            >
-              <option value="pt">Português</option>
-              <option value="en">Inglês</option>
-              <option value="es">Espanhol</option>
-              <option value="fr">Francês</option>
-              <option value="de">Alemão</option>
-              <option value="it">Italiano</option>
-              <option value="ja">Japonês</option>
-            </select>
-          </div>
-          <output className="translation-output">
-            {translation || "A tradução aparecerá aqui."}
-          </output>
-          <div className="panel-footer">
-            <span>{detectedLanguage ? `Idioma detectado: ${detectedLanguage}` : ""}</span>
-            <button className="secondary-button" type="button" onClick={copyTranslation} disabled={!translation}>
-              Copiar · {settings.copyShortcut}
+          <form onSubmit={translate} className="translator">
+            <section className="panel input-panel">
+              <div className="panel-heading">
+                <label htmlFor="source-text">Texto original</label>
+                <span>Detectar idioma</span>
+              </div>
+              <textarea
+                id="source-text"
+                ref={textAreaRef}
+                value={text}
+                onChange={(event) => setText(event.target.value)}
+                onKeyDown={handleEditorKeyDown}
+                placeholder="Digite ou cole algo para traduzir..."
+                spellCheck
+              />
+              <div className="panel-footer">
+                <span>{text.length} caracteres</span>
+                <button className="primary-button" type="submit" disabled={!text.trim() || isTranslating}>
+                  {isTranslating ? "Traduzindo..." : `Traduzir · ${settings.translateShortcut}`}
+                </button>
+              </div>
+            </section>
+
+            <section className="panel result-panel">
+              <div className="panel-heading">
+                <span>Tradução</span>
+                <select
+                  aria-label="Idioma de destino"
+                  value={settings.targetLanguage}
+                  onChange={(event) => updateTargetLanguage(event.target.value)}
+                >
+                  <option value="pt">Português</option>
+                  <option value="en">Inglês</option>
+                  <option value="es">Espanhol</option>
+                  <option value="fr">Francês</option>
+                  <option value="de">Alemão</option>
+                  <option value="it">Italiano</option>
+                  <option value="ja">Japonês</option>
+                </select>
+              </div>
+              <output className="translation-output">
+                {translation || "A tradução aparecerá aqui."}
+              </output>
+              <div className="panel-footer">
+                <span>{detectedLanguage ? `Idioma detectado: ${detectedLanguage}` : ""}</span>
+                <button className="secondary-button" type="button" onClick={copyTranslation} disabled={!translation}>
+                  Copiar · {settings.copyShortcut}
+                </button>
+              </div>
+            </section>
+          </form>
+
+          <footer className="statusbar">
+            <span>{error || copyFeedback || `Mostrar/ocultar: ${settings.globalShortcut}`}</span>
+            <button className="link-button" type="button" onClick={() => void hideApplication()}>
+              Ocultar · {settings.hideShortcut}
             </button>
-          </div>
-        </section>
-      </form>
-
-      <footer className="statusbar">
-        <span>{error || copyFeedback || `Mostrar/ocultar: ${settings.globalShortcut}`}</span>
-        <button className="link-button" type="button" onClick={() => void hideApplication()}>
-          Ocultar · {settings.hideShortcut}
-        </button>
-      </footer>
+          </footer>
+        </>
+      )}
 
       {showSettings && (
         <div className="modal-backdrop" role="presentation">
@@ -290,6 +355,7 @@ export default function App() {
 
             <div className="settings-grid">
               <ShortcutInput label="Mostrar ou ocultar o app (global)" value={draftSettings.globalShortcut} onChange={(globalShortcut) => setDraftSettings({ ...draftSettings, globalShortcut })} />
+              <ShortcutInput label="Abrir tradução rápida (global)" value={draftSettings.quickTranslateShortcut} onChange={(quickTranslateShortcut) => setDraftSettings({ ...draftSettings, quickTranslateShortcut })} />
               <ShortcutInput label="Traduzir" value={draftSettings.translateShortcut} onChange={(translateShortcut) => setDraftSettings({ ...draftSettings, translateShortcut })} />
               <ShortcutInput label="Copiar resultado" value={draftSettings.copyShortcut} onChange={(copyShortcut) => setDraftSettings({ ...draftSettings, copyShortcut })} />
               <ShortcutInput label="Ocultar janela" value={draftSettings.hideShortcut} onChange={(hideShortcut) => setDraftSettings({ ...draftSettings, hideShortcut })} />
@@ -330,7 +396,7 @@ export default function App() {
                 </label>
               )}
             </div>
-            <p className="settings-note">Clique em um campo de atalho e pressione a nova combinação. O atalho global precisa conter ao menos um modificador. MyMemory é gratuito, com limite de 5.000 caracteres por dia e 500 bytes por chamada. A chave do LibreTranslate é armazenada no Gerenciador de Credenciais do Windows, não no navegador local.</p>
+            <p className="settings-note">Clique em um campo de atalho e pressione a nova combinação. Os dois atalhos globais precisam conter ao menos um modificador. MyMemory é gratuito, com limite de 5.000 caracteres por dia e 500 bytes por chamada. A chave do LibreTranslate é armazenada no Gerenciador de Credenciais do Windows, não no navegador local.</p>
             <div className="modal-actions">
               <button className="secondary-button" type="button" onClick={() => setDraftSettings(defaultSettings)}>
                 Restaurar padrões
