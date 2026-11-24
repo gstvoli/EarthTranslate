@@ -31,6 +31,16 @@ Por padrão, o MVP utiliza o endpoint público do LibreTranslate. Esse serviço 
 
 Consulte [docs/API.md](docs/API.md) para o contrato de chamada ao serviço de tradução.
 
+### Pacote portátil
+
+Para gerar uma versão sem instalador, execute:
+
+```bash
+npm run package:portable
+```
+
+O arquivo `release/EarthTranslate-<versão>-portable.zip` conterá apenas o executável. Extraia-o em uma pasta permanente e execute-o diretamente; não é necessário desinstalar a versão anterior a cada teste.
+
 ## Atalhos iniciais
 
 | Atalho | Ação |
