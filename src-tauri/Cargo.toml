@@ -5,10 +5,6 @@ description = "Aplicativo desktop para tradução rápida"
 authors = ["EarthTranslate"]
 edition = "2021"
 
-[lib]
-name = "earthtranslate_lib"
-crate-type = ["staticlib", "cdylib", "rlib"]
-
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
