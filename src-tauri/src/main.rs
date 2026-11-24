@@ -1,7 +1,21 @@
+use std::{fs, path::PathBuf, sync::Mutex};
+
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, State};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
+
+const DEFAULT_GLOBAL_SHORTCUT: &str = "Ctrl+Alt+T";
+
+struct AppState {
+    global_shortcut: Mutex<String>,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct NativeSettings {
+    global_shortcut: String,
+}
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -54,17 +68,84 @@ fn parse_shortcut(value: &str) -> Result<Shortcut, String> {
         .map_err(|_| "Combinação de teclas inválida ou não suportada.".into())
 }
 
-#[tauri::command]
-fn set_global_shortcut(app: AppHandle, shortcut: String) -> Result<(), String> {
-    let shortcut = parse_shortcut(&shortcut)?;
-    let manager = app.global_shortcut();
+fn settings_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let directory = app
+        .path()
+        .app_config_dir()
+        .map_err(|error| format!("Não foi possível localizar as configurações: {error}"))?;
+    fs::create_dir_all(&directory)
+        .map_err(|error| format!("Não foi possível criar a pasta de configurações: {error}"))?;
+    Ok(directory.join("settings.json"))
+}
 
+fn read_global_shortcut(app: &AppHandle) -> Result<String, String> {
+    let path = settings_path(app)?;
+    match fs::read_to_string(path) {
+        Ok(contents) => serde_json::from_str::<NativeSettings>(&contents)
+            .map(|settings| settings.global_shortcut)
+            .map_err(|error| format!("Não foi possível ler as configurações: {error}")),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            Ok(DEFAULT_GLOBAL_SHORTCUT.into())
+        }
+        Err(error) => Err(format!("Não foi possível ler as configurações: {error}")),
+    }
+}
+
+fn save_global_shortcut(app: &AppHandle, shortcut: &str) -> Result<(), String> {
+    let contents = serde_json::to_string_pretty(&NativeSettings {
+        global_shortcut: shortcut.into(),
+    })
+    .map_err(|error| format!("Não foi possível preparar as configurações: {error}"))?;
+    fs::write(settings_path(app)?, contents)
+        .map_err(|error| format!("Não foi possível salvar as configurações: {error}"))
+}
+
+#[tauri::command]
+fn get_global_shortcut(state: State<AppState>) -> Result<String, String> {
+    state
+        .global_shortcut
+        .lock()
+        .map(|shortcut| shortcut.clone())
+        .map_err(|_| "Não foi possível acessar as configurações de atalho.".into())
+}
+
+#[tauri::command]
+fn set_global_shortcut(
+    app: AppHandle,
+    state: State<AppState>,
+    shortcut: String,
+) -> Result<(), String> {
+    let requested_shortcut = shortcut.trim().to_string();
+    let shortcut = parse_shortcut(&requested_shortcut)?;
+    let mut active_shortcut = state
+        .global_shortcut
+        .lock()
+        .map_err(|_| "Não foi possível acessar as configurações de atalho.".to_string())?;
+
+    if active_shortcut.eq_ignore_ascii_case(&requested_shortcut) {
+        return Ok(());
+    }
+
+    let manager = app.global_shortcut();
     manager
         .unregister_all()
         .map_err(|error| format!("Não foi possível atualizar os atalhos: {error}"))?;
-    manager
-        .register(shortcut)
-        .map_err(|error| format!("Este atalho não está disponível: {error}"))
+
+    if let Err(error) = manager.register(shortcut) {
+        let previous = parse_shortcut(&active_shortcut)?;
+        let _ = manager.register(previous);
+        return Err(format!("Este atalho não está disponível: {error}"));
+    }
+
+    if let Err(error) = save_global_shortcut(&app, &requested_shortcut) {
+        let _ = manager.unregister_all();
+        let previous = parse_shortcut(&active_shortcut)?;
+        let _ = manager.register(previous);
+        return Err(error);
+    }
+
+    *active_shortcut = requested_shortcut;
+    Ok(())
 }
 
 #[tauri::command]
@@ -128,12 +209,23 @@ fn main() {
                 .build(),
         )
         .setup(|app| {
+            let saved_shortcut = read_global_shortcut(app.handle())
+                .unwrap_or_else(|_| DEFAULT_GLOBAL_SHORTCUT.into());
+            let global_shortcut = if parse_shortcut(&saved_shortcut).is_ok() {
+                saved_shortcut
+            } else {
+                DEFAULT_GLOBAL_SHORTCUT.into()
+            };
             let initial_shortcut =
-                parse_shortcut("Ctrl+Alt+T").map_err(std::io::Error::other)?;
+                parse_shortcut(&global_shortcut).map_err(std::io::Error::other)?;
             app.global_shortcut().register(initial_shortcut)?;
+            app.manage(AppState {
+                global_shortcut: Mutex::new(global_shortcut),
+            });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            get_global_shortcut,
             set_global_shortcut,
             hide_main_window,
             translate

@@ -68,10 +68,14 @@ export default function App() {
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    void invoke("set_global_shortcut", { shortcut: settings.globalShortcut }).catch((reason) => {
-      setError(`Não foi possível registrar o atalho global: ${String(reason)}`);
-    });
-  }, [settings.globalShortcut]);
+    void invoke<string>("get_global_shortcut")
+      .then((globalShortcut) => {
+        setSettings((current) => ({ ...current, globalShortcut }));
+      })
+      .catch((reason) => {
+        setError(`Não foi possível carregar o atalho global: ${String(reason)}`);
+      });
+  }, []);
 
   useEffect(() => {
     const focusInput = () => textAreaRef.current?.focus();
@@ -141,6 +145,12 @@ export default function App() {
     } catch (reason) {
       setError(`O atalho global não pôde ser salvo: ${String(reason)}`);
     }
+  }
+
+  function updateTargetLanguage(targetLanguage: string) {
+    const nextSettings = { ...settings, targetLanguage };
+    setSettings(nextSettings);
+    localStorage.setItem(settingsKey, JSON.stringify(nextSettings));
   }
 
   function handleEditorKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
@@ -219,7 +229,7 @@ export default function App() {
             <select
               aria-label="Idioma de destino"
               value={settings.targetLanguage}
-              onChange={(event) => setSettings({ ...settings, targetLanguage: event.target.value })}
+              onChange={(event) => updateTargetLanguage(event.target.value)}
             >
               <option value="pt">Português</option>
               <option value="en">Inglês</option>
