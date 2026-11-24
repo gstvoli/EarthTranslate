@@ -27,7 +27,7 @@ npm install
 npm run tauri:dev
 ```
 
-Por padrão, o MVP utiliza o endpoint público do LibreTranslate. Esse serviço exige uma chave de API, que deve ser cadastrada em **Configurações**. A chave é salva no Gerenciador de Credenciais do Windows; ela não é incluída no armazenamento local do navegador. O endpoint pode ser alterado para utilizar um serviço próprio ou corporativo.
+Por padrão, o MVP utiliza o **MyMemory**, que não requer chave de API. O limite gratuito é de 5.000 caracteres por dia e 500 bytes por tradução. O LibreTranslate permanece disponível como alternativa e exige uma chave de API, que é salva no Gerenciador de Credenciais do Windows — nunca no armazenamento local do navegador.
 
 Consulte [docs/API.md](docs/API.md) para o contrato de chamada ao serviço de tradução.
 

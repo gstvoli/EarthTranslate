@@ -1,9 +1,17 @@
+export type TranslationProvider = "mymemory" | "libretranslate";
+
+export const providerDefaultEndpoints: Record<TranslationProvider, string> = {
+  mymemory: "https://api.mymemory.translated.net/get",
+  libretranslate: "https://libretranslate.com/translate",
+};
+
 export type Settings = {
   globalShortcut: string;
   translateShortcut: string;
   copyShortcut: string;
   hideShortcut: string;
   targetLanguage: string;
+  provider: TranslationProvider;
   endpoint: string;
 };
 
@@ -18,5 +26,6 @@ export const defaultSettings: Settings = {
   copyShortcut: "Ctrl+Shift+C",
   hideShortcut: "Escape",
   targetLanguage: "pt",
-  endpoint: "https://libretranslate.com/translate",
+  provider: "mymemory",
+  endpoint: providerDefaultEndpoints.mymemory,
 };

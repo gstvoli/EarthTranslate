@@ -28,6 +28,7 @@ struct TranslationRequest {
     text: String,
     source: String,
     target: String,
+    provider: String,
     endpoint: String,
 }
 
@@ -41,6 +42,21 @@ struct ProviderResponse {
 #[derive(Deserialize)]
 struct DetectedLanguage {
     language: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct MyMemoryResponse {
+    response_data: MyMemoryData,
+    response_status: u16,
+    response_details: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct MyMemoryData {
+    translated_text: String,
+    detected_language: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -186,12 +202,73 @@ async fn translate(request: TranslationRequest) -> Result<TranslationResponse, S
         return Err("Digite algum texto antes de traduzir.".into());
     }
 
+    match request.provider.as_str() {
+        "mymemory" => translate_with_mymemory(&request).await,
+        "libretranslate" => translate_with_libretranslate(&request).await,
+        _ => Err("O provedor de tradução selecionado não é suportado.".into()),
+    }
+}
+
+async fn translate_with_mymemory(
+    request: &TranslationRequest,
+) -> Result<TranslationResponse, String> {
+    if request.text.as_bytes().len() > 500 {
+        return Err(
+            "O MyMemory aceita até 500 bytes por tradução. Divida o texto em partes menores."
+                .into(),
+        );
+    }
+
+    let endpoint = if request.endpoint.trim().is_empty() {
+        "https://api.mymemory.translated.net/get"
+    } else {
+        request.endpoint.trim()
+    };
+    let source = if request.source == "auto" {
+        "autodetect"
+    } else {
+        request.source.as_str()
+    };
+    let langpair = format!("{source}|{}", request.target);
+
+    let response = reqwest::Client::new()
+        .get(endpoint)
+        .query(&[("q", request.text.as_str()), ("langpair", langpair.as_str())])
+        .send()
+        .await
+        .map_err(|error| format!("Não foi possível alcançar o serviço de tradução: {error}"))?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let details = response.text().await.unwrap_or_default();
+        return Err(format!(
+            "O serviço de tradução retornou o status {status}. {details}",
+        ));
+    }
+
+    let payload = response
+        .json::<MyMemoryResponse>()
+        .await
+        .map_err(|error| format!("Resposta inválida do MyMemory: {error}"))?;
+
+    if payload.response_status != 200 {
+        return Err(format!("O MyMemory recusou a tradução. {}", payload.response_details));
+    }
+
+    Ok(TranslationResponse {
+        translated_text: payload.response_data.translated_text,
+        detected_language: payload.response_data.detected_language,
+    })
+}
+
+async fn translate_with_libretranslate(
+    request: &TranslationRequest,
+) -> Result<TranslationResponse, String> {
     let endpoint = if request.endpoint.trim().is_empty() {
         "https://libretranslate.com/translate"
     } else {
         request.endpoint.trim()
     };
-
     let mut body = json!({
         "q": request.text,
         "source": request.source,

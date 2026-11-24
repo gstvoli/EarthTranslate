@@ -5,13 +5,28 @@ import {
   shortcutFromEvent,
   validateShortcutConfiguration,
 } from "./lib/shortcuts";
-import { defaultSettings, Settings, TranslationResponse } from "./types";
+import {
+  defaultSettings,
+  providerDefaultEndpoints,
+  Settings,
+  TranslationProvider,
+  TranslationResponse,
+} from "./types";
 
 const settingsKey = "earthtranslate.settings";
 
 function loadSettings(): Settings {
   try {
-    return { ...defaultSettings, ...JSON.parse(localStorage.getItem(settingsKey) ?? "{}") };
+    const storedSettings = JSON.parse(localStorage.getItem(settingsKey) ?? "{}") as Partial<Settings>;
+    if (!storedSettings.provider) {
+      return {
+        ...defaultSettings,
+        ...storedSettings,
+        provider: "mymemory",
+        endpoint: providerDefaultEndpoints.mymemory,
+      };
+    }
+    return { ...defaultSettings, ...storedSettings };
   } catch {
     return defaultSettings;
   }
@@ -88,6 +103,7 @@ export default function App() {
           text: content,
           source: "auto",
           target: settings.targetLanguage,
+          provider: settings.provider,
           endpoint: settings.endpoint,
         },
       });
@@ -142,6 +158,14 @@ export default function App() {
     const nextSettings = { ...settings, targetLanguage };
     setSettings(nextSettings);
     localStorage.setItem(settingsKey, JSON.stringify(nextSettings));
+  }
+
+  function updateProvider(provider: TranslationProvider) {
+    setDraftSettings({
+      ...draftSettings,
+      provider,
+      endpoint: providerDefaultEndpoints[provider],
+    });
   }
 
   function handleEditorKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
@@ -279,22 +303,34 @@ export default function App() {
                   <option value="de">Alemão</option>
                 </select>
               </label>
+              <label className="field">
+                <span>Provedor de tradução</span>
+                <select
+                  value={draftSettings.provider}
+                  onChange={(event) => updateProvider(event.target.value as TranslationProvider)}
+                >
+                  <option value="mymemory">MyMemory — gratuito</option>
+                  <option value="libretranslate">LibreTranslate — requer chave</option>
+                </select>
+              </label>
               <label className="field field-wide">
-                <span>Endpoint LibreTranslate</span>
+                <span>Endpoint do provedor</span>
                 <input value={draftSettings.endpoint} onChange={(event) => setDraftSettings({ ...draftSettings, endpoint: event.target.value })} />
               </label>
-              <label className="field field-wide">
-                <span>Chave de API LibreTranslate</span>
-                <input
-                  type="password"
-                  value={apiKeyInput}
-                  autoComplete="off"
-                  placeholder="Deixe vazio para manter a chave já salva"
-                  onChange={(event) => setApiKeyInput(event.target.value)}
-                />
-              </label>
+              {draftSettings.provider === "libretranslate" && (
+                <label className="field field-wide">
+                  <span>Chave de API LibreTranslate</span>
+                  <input
+                    type="password"
+                    value={apiKeyInput}
+                    autoComplete="off"
+                    placeholder="Deixe vazio para manter a chave já salva"
+                    onChange={(event) => setApiKeyInput(event.target.value)}
+                  />
+                </label>
+              )}
             </div>
-            <p className="settings-note">Clique em um campo de atalho e pressione a nova combinação. O atalho global precisa conter ao menos um modificador. A chave de API é armazenada no Gerenciador de Credenciais do Windows, não no navegador local.</p>
+            <p className="settings-note">Clique em um campo de atalho e pressione a nova combinação. O atalho global precisa conter ao menos um modificador. MyMemory é gratuito, com limite de 5.000 caracteres por dia e 500 bytes por chamada. A chave do LibreTranslate é armazenada no Gerenciador de Credenciais do Windows, não no navegador local.</p>
             <div className="modal-actions">
               <button className="secondary-button" type="button" onClick={() => setDraftSettings(defaultSettings)}>
                 Restaurar padrões
