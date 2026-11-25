@@ -69,6 +69,8 @@ export default function App() {
   const [text, setText] = useState("");
   const [translation, setTranslation] = useState("");
   const [detectedLanguage, setDetectedLanguage] = useState<string>();
+  const [alternativeTranslations, setAlternativeTranslations] = useState<string[]>([]);
+  const [moreTranslations, setMoreTranslations] = useState<string[]>([]);
   const [isTranslating, setIsTranslating] = useState(false);
   const [error, setError] = useState("");
   const [copyFeedback, setCopyFeedback] = useState("");
@@ -105,6 +107,8 @@ export default function App() {
       setText("");
       setTranslation("");
       setDetectedLanguage(undefined);
+      setAlternativeTranslations([]);
+      setMoreTranslations([]);
       setError("");
     });
     const unregisterStandard = listen("earthtranslate:open-standard", () => {
@@ -137,6 +141,8 @@ export default function App() {
       });
       setTranslation(result.translatedText);
       setDetectedLanguage(result.detectedLanguage);
+      setAlternativeTranslations(result.alternativeTranslations);
+      setMoreTranslations(result.moreTranslations);
     } catch (reason) {
       setError(`Não foi possível traduzir o texto. ${String(reason)}`);
     } finally {
@@ -258,6 +264,9 @@ export default function App() {
           </form>
           <div className="compact-result">
             <output>{translation || error || "A tradução aparecerá aqui."}</output>
+            {alternativeTranslations.length > 0 && (
+              <p className="compact-alternatives">Também: {alternativeTranslations.join(" · ")}</p>
+            )}
             {translation && (
               <button className="text-button" type="button" onClick={() => void copyTranslation()}>
                 Copiar
@@ -319,9 +328,33 @@ export default function App() {
                   <option value="ja">Japonês</option>
                 </select>
               </div>
-              <output className="translation-output">
-                {translation || "A tradução aparecerá aqui."}
-              </output>
+              <div className={`translation-details ${moreTranslations.length > 0 ? "has-more" : ""}`}>
+                <div className="translation-main">
+                  <output className="translation-output">
+                    {translation || "A tradução aparecerá aqui."}
+                  </output>
+                  {alternativeTranslations.length > 0 && (
+                    <section className="alternative-translations" aria-label="Outras traduções e expressões">
+                      <p>Outras traduções e expressões</p>
+                      <div>
+                        {alternativeTranslations.map((alternative) => (
+                          <span key={alternative}>{alternative}</span>
+                        ))}
+                      </div>
+                    </section>
+                  )}
+                </div>
+                {moreTranslations.length > 0 && (
+                  <aside className="more-translations">
+                    <p>Mais</p>
+                    <ul>
+                      {moreTranslations.map((alternative) => (
+                        <li key={alternative}>{alternative}</li>
+                      ))}
+                    </ul>
+                  </aside>
+                )}
+              </div>
               <div className="panel-footer">
                 <span>{detectedLanguage ? `Idioma detectado: ${detectedLanguage}` : ""}</span>
                 <button className="secondary-button" type="button" onClick={copyTranslation} disabled={!translation}>

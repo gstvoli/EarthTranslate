@@ -18,7 +18,11 @@ Uma resposta bem-sucedida segue o formato:
     "translatedText": "Olá, mundo!",
     "detectedLanguage": "en"
   },
-  "responseStatus": 200
+  "responseStatus": 200,
+  "matches": [
+    { "translation": "Olá mundo" },
+    { "translation": "Oi, mundo!" }
+  ]
 }
 ```
 
@@ -27,6 +31,8 @@ Limites gratuitos atuais:
 - 5.000 caracteres por dia por IP;
 - 500 bytes por chamada;
 - 50.000 caracteres por dia quando o usuário fornece um email válido ao MyMemory.
+
+O EarthTranslate exibe até três itens distintos de `matches` como **Outras traduções e expressões** e até cinco resultados adicionais no bloco lateral **Mais**. Essas opções são correspondências retornadas pelo MyMemory, não definições de dicionário.
 
 ## LibreTranslate — alternativa com chave
 

@@ -53,6 +53,8 @@ struct MyMemoryResponse {
     response_data: MyMemoryData,
     response_status: u16,
     response_details: String,
+    #[serde(default)]
+    matches: Vec<MyMemoryMatch>,
 }
 
 #[derive(Deserialize)]
@@ -62,11 +64,18 @@ struct MyMemoryData {
     detected_language: Option<String>,
 }
 
+#[derive(Deserialize)]
+struct MyMemoryMatch {
+    translation: String,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct TranslationResponse {
     translated_text: String,
     detected_language: Option<String>,
+    alternative_translations: Vec<String>,
+    more_translations: Vec<String>,
 }
 
 fn toggle_main_window(app: &AppHandle) {
@@ -181,6 +190,36 @@ fn translation_api_key() -> Option<String> {
         .ok()
         .and_then(|entry| entry.get_password().ok())
         .filter(|key| !key.trim().is_empty())
+}
+
+fn split_match_translations(
+    primary_translation: &str,
+    matches: Vec<MyMemoryMatch>,
+) -> (Vec<String>, Vec<String>) {
+    let mut unique_translations = Vec::new();
+
+    for item in matches {
+        let translation = item.translation.trim();
+        if translation.is_empty()
+            || translation.eq_ignore_ascii_case(primary_translation)
+            || unique_translations
+                .iter()
+                .any(|existing: &String| existing.eq_ignore_ascii_case(translation))
+        {
+            continue;
+        }
+        unique_translations.push(translation.to_string());
+    }
+
+    let more_translations = unique_translations
+        .iter()
+        .skip(3)
+        .take(5)
+        .cloned()
+        .collect();
+    let alternative_translations = unique_translations.into_iter().take(3).collect();
+
+    (alternative_translations, more_translations)
 }
 
 #[tauri::command]
@@ -320,9 +359,14 @@ async fn translate_with_mymemory(
         return Err(format!("O MyMemory recusou a tradução. {}", payload.response_details));
     }
 
+    let (alternative_translations, more_translations) =
+        split_match_translations(&payload.response_data.translated_text, payload.matches);
+
     Ok(TranslationResponse {
         translated_text: payload.response_data.translated_text,
         detected_language: payload.response_data.detected_language,
+        alternative_translations,
+        more_translations,
     })
 }
 
@@ -367,6 +411,8 @@ async fn translate_with_libretranslate(
     Ok(TranslationResponse {
         translated_text: payload.translated_text,
         detected_language: payload.detected_language.map(|language| language.language),
+        alternative_translations: Vec::new(),
+        more_translations: Vec::new(),
     })
 }
 

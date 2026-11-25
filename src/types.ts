@@ -19,6 +19,8 @@ export type Settings = {
 export type TranslationResponse = {
   translatedText: string;
   detectedLanguage?: string;
+  alternativeTranslations: string[];
+  moreTranslations: string[];
 };
 
 export const defaultSettings: Settings = {
