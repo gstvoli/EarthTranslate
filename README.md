@@ -31,6 +31,8 @@ Por padrão, o MVP utiliza o **MyMemory**, que não requer chave de API. O limit
 
 Consulte [docs/API.md](docs/API.md) para o contrato de chamada ao serviço de tradução.
 
+O aplicativo verifica atualizações assinadas do GitHub automaticamente. Consulte [docs/ATUALIZACOES.md](docs/ATUALIZACOES.md) para o processo de publicação.
+
 ### Pacote portátil
 
 Para gerar uma versão sem instalador, execute:

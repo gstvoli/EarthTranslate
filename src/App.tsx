@@ -1,6 +1,8 @@
 import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { relaunch } from "@tauri-apps/plugin-process";
+import { check, type Update } from "@tauri-apps/plugin-updater";
 import {
   matchesShortcut,
   shortcutFromEvent,
@@ -75,6 +77,9 @@ export default function App() {
   const [error, setError] = useState("");
   const [copyFeedback, setCopyFeedback] = useState("");
   const [layout, setLayout] = useState<Layout>("standard");
+  const [availableUpdate, setAvailableUpdate] = useState<Update | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [updateProgress, setUpdateProgress] = useState("");
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const quickInputRef = useRef<HTMLInputElement>(null);
 
@@ -86,6 +91,27 @@ export default function App() {
       .catch((reason) => {
         setError(`Não foi possível carregar os atalhos globais: ${String(reason)}`);
       });
+  }, []);
+
+  useEffect(() => {
+    let isActive = true;
+
+    void check({ timeout: 8_000 })
+      .then((update) => {
+        if (isActive) {
+          setAvailableUpdate(update);
+        } else if (update) {
+          void update.close();
+        }
+      })
+      .catch(() => {
+        // Sem release publicada, modo de desenvolvimento ou rede indisponível:
+        // a interface continua utilizável sem avisos intrusivos.
+      });
+
+    return () => {
+      isActive = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -158,6 +184,33 @@ export default function App() {
 
   async function hideApplication() {
     await invoke("hide_main_window");
+  }
+
+  async function installAvailableUpdate() {
+    if (!availableUpdate || isUpdating) return;
+
+    setIsUpdating(true);
+    setUpdateProgress("Preparando atualização...");
+    try {
+      let downloadedBytes = 0;
+      await availableUpdate.downloadAndInstall((event) => {
+        if (event.event === "Started") {
+          setUpdateProgress("Baixando atualização...");
+        }
+        if (event.event === "Progress") {
+          downloadedBytes += event.data.chunkLength;
+          setUpdateProgress(`Baixando atualização (${Math.round(downloadedBytes / 1024)} KB)...`);
+        }
+        if (event.event === "Finished") {
+          setUpdateProgress("Instalando atualização...");
+        }
+      });
+      await relaunch();
+    } catch (reason) {
+      setIsUpdating(false);
+      setUpdateProgress("");
+      setError(`Não foi possível instalar a atualização. ${String(reason)}`);
+    }
   }
 
   async function saveSettings() {
@@ -247,6 +300,11 @@ export default function App() {
             <p className="eyebrow">TRADUÇÃO RÁPIDA</p>
             <button className="icon-button" type="button" aria-label="Abrir configurações" onClick={openSettings}>⚙</button>
           </header>
+          {availableUpdate && (
+            <button className="compact-update-button" type="button" onClick={() => void installAvailableUpdate()} disabled={isUpdating}>
+              {isUpdating ? updateProgress || "Atualizando..." : `Atualizar para ${availableUpdate.version}`}
+            </button>
+          )}
           <form onSubmit={translate}>
             <div className="compact-entry">
               <input
@@ -280,6 +338,17 @@ export default function App() {
         </section>
       ) : (
         <>
+          {availableUpdate && (
+            <section className="update-banner" aria-live="polite">
+              <div>
+                <strong>Atualização {availableUpdate.version} disponível</strong>
+                <span>{availableUpdate.body || `Versão atual: ${availableUpdate.currentVersion}`}</span>
+              </div>
+              <button className="primary-button" type="button" onClick={() => void installAvailableUpdate()} disabled={isUpdating}>
+                {isUpdating ? updateProgress || "Atualizando..." : "Atualizar agora"}
+              </button>
+            </section>
+          )}
           <header className="topbar">
             <div>
               <p className="eyebrow">EARTHTRANSLATE</p>

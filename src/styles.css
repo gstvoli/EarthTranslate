@@ -33,6 +33,22 @@ button:disabled { cursor: not-allowed; opacity: .48; }
 
 .topbar { margin-bottom: 24px; }
 
+.update-banner {
+  align-items: center;
+  background: rgba(194, 219, 155, .11);
+  border: 1px solid rgba(194, 219, 155, .28);
+  border-radius: 12px;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  margin-bottom: 18px;
+  padding: 11px 13px 11px 15px;
+}
+
+.update-banner div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.update-banner strong { color: #d7ecbd; font-size: .82rem; }
+.update-banner span { color: #a8be9d; font-size: .72rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 .eyebrow {
   color: #a7c69b;
   font-size: .68rem;
@@ -227,6 +243,20 @@ textarea::placeholder { color: #6f8476; }
 
 .compact-topbar .eyebrow { margin: 0; }
 .compact-topbar .icon-button { font-size: .92rem; height: 30px; width: 30px; }
+.compact-update-button {
+  background: rgba(194, 219, 155, .11);
+  border: 1px solid rgba(194, 219, 155, .25);
+  border-radius: 8px;
+  color: #d4e8c2;
+  font-size: .7rem;
+  font-weight: 700;
+  overflow: hidden;
+  padding: 7px 9px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
+}
 
 .compact-entry {
   display: flex;
