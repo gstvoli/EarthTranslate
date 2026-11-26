@@ -1,6 +1,8 @@
 # Integração de tradução
 
 O EarthTranslate usa o provedor configurado na tela de configurações.
+O aplicativo reutiliza conexões HTTP entre traduções. Cada chamada tem um
+limite de 5 segundos para estabelecer a conexão e de 15 segundos no total.
 
 ## MyMemory — padrão gratuito
 

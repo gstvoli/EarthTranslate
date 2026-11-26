@@ -1,8 +1,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::{fs, path::PathBuf, sync::Mutex};
+use std::{fs, path::PathBuf, sync::Mutex, time::Duration};
 
 use keyring::Entry;
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tauri::{AppHandle, Emitter, LogicalSize, Manager, Size, State};
@@ -12,9 +13,12 @@ const DEFAULT_GLOBAL_SHORTCUT: &str = "Ctrl+Alt+T";
 const DEFAULT_QUICK_TRANSLATE_SHORTCUT: &str = "Ctrl+Alt+Q";
 const CREDENTIAL_SERVICE: &str = "EarthTranslate";
 const CREDENTIAL_USER: &str = "translation-api-key";
+const TRANSLATION_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
+const TRANSLATION_REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
 
 struct AppState {
     shortcuts: Mutex<NativeSettings>,
+    translation_client: Client,
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -323,19 +327,33 @@ fn hide_main_window(app: AppHandle) {
 }
 
 #[tauri::command]
-async fn translate(request: TranslationRequest) -> Result<TranslationResponse, String> {
+async fn translate(
+    request: TranslationRequest,
+    state: State<'_, AppState>,
+) -> Result<TranslationResponse, String> {
     if request.text.trim().is_empty() {
         return Err("Digite algum texto antes de traduzir.".into());
     }
 
     match request.provider.as_str() {
-        "mymemory" => translate_with_mymemory(&request).await,
-        "libretranslate" => translate_with_libretranslate(&request).await,
+        "mymemory" => translate_with_mymemory(&state.translation_client, &request).await,
+        "libretranslate" => {
+            translate_with_libretranslate(&state.translation_client, &request).await
+        }
         _ => Err("O provedor de tradução selecionado não é suportado.".into()),
     }
 }
 
+fn translation_http_error(error: reqwest::Error, context: &str) -> String {
+    if error.is_timeout() {
+        "O serviço de tradução demorou para responder. Tente novamente.".into()
+    } else {
+        format!("{context}: {}", error.without_url())
+    }
+}
+
 async fn translate_with_mymemory(
+    client: &Client,
     request: &TranslationRequest,
 ) -> Result<TranslationResponse, String> {
     if request.text.as_bytes().len() > 500 {
@@ -357,12 +375,14 @@ async fn translate_with_mymemory(
     };
     let langpair = format!("{source}|{}", request.target);
 
-    let response = reqwest::Client::new()
+    let response = client
         .get(endpoint)
         .query(&[("q", request.text.as_str()), ("langpair", langpair.as_str())])
         .send()
         .await
-        .map_err(|error| format!("Não foi possível alcançar o serviço de tradução: {error}"))?;
+        .map_err(|error| {
+            translation_http_error(error, "Não foi possível alcançar o serviço de tradução")
+        })?;
 
     if !response.status().is_success() {
         let status = response.status();
@@ -375,7 +395,7 @@ async fn translate_with_mymemory(
     let payload = response
         .json::<MyMemoryResponse>()
         .await
-        .map_err(|error| format!("Resposta inválida do MyMemory: {error}"))?;
+        .map_err(|error| translation_http_error(error, "Resposta inválida do MyMemory"))?;
 
     if payload.response_status != 200 {
         return Err(format!("O MyMemory recusou a tradução. {}", payload.response_details));
@@ -393,6 +413,7 @@ async fn translate_with_mymemory(
 }
 
 async fn translate_with_libretranslate(
+    client: &Client,
     request: &TranslationRequest,
 ) -> Result<TranslationResponse, String> {
     let endpoint = if request.endpoint.trim().is_empty() {
@@ -410,12 +431,14 @@ async fn translate_with_libretranslate(
         body["api_key"] = json!(api_key);
     }
 
-    let response = reqwest::Client::new()
+    let response = client
         .post(endpoint)
         .json(&body)
         .send()
         .await
-        .map_err(|error| format!("Não foi possível alcançar o serviço de tradução: {error}"))?;
+        .map_err(|error| {
+            translation_http_error(error, "Não foi possível alcançar o serviço de tradução")
+        })?;
 
     if !response.status().is_success() {
         let status = response.status();
@@ -428,7 +451,9 @@ async fn translate_with_libretranslate(
     let payload = response
         .json::<ProviderResponse>()
         .await
-        .map_err(|error| format!("Resposta inválida do serviço de tradução: {error}"))?;
+        .map_err(|error| {
+            translation_http_error(error, "Resposta inválida do serviço de tradução")
+        })?;
 
     Ok(TranslationResponse {
         translated_text: payload.translated_text,
@@ -466,6 +491,10 @@ fn main() {
                 .build(),
         )
         .setup(|app| {
+            let translation_client = Client::builder()
+                .connect_timeout(TRANSLATION_CONNECT_TIMEOUT)
+                .timeout(TRANSLATION_REQUEST_TIMEOUT)
+                .build()?;
             let saved_shortcuts =
                 read_shortcut_settings(app.handle()).unwrap_or_else(|_| default_shortcut_settings());
             let shortcuts = if validate_shortcuts(&saved_shortcuts).is_ok() {
@@ -476,6 +505,7 @@ fn main() {
             register_shortcuts(app.handle(), &shortcuts).map_err(std::io::Error::other)?;
             app.manage(AppState {
                 shortcuts: Mutex::new(shortcuts),
+                translation_client,
             });
             Ok(())
         })
