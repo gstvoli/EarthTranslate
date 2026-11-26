@@ -2,7 +2,6 @@ import { FormEvent, KeyboardEvent, MouseEvent, useEffect, useRef, useState } fro
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import {
   matchesShortcut,
@@ -20,6 +19,8 @@ import {
 
 const settingsKey = "earthtranslate.settings";
 type Layout = "standard" | "compact";
+const updateCheckTimeout = 4_000;
+const updateDownloadTimeout = 30_000;
 const languageOptions = [
   { value: "pt", label: "Português" },
   { value: "en", label: "Inglês" },
@@ -89,9 +90,11 @@ export default function App() {
   const [copyFeedback, setCopyFeedback] = useState("");
   const [layout, setLayout] = useState<Layout>("standard");
   const [appMetadata, setAppMetadata] = useState<AppMetadata>();
-  const [availableUpdate, setAvailableUpdate] = useState<Update | null>(null);
-  const [isUpdating, setIsUpdating] = useState(false);
-  const [updateProgress, setUpdateProgress] = useState("");
+  const [startupUpdate, setStartupUpdate] = useState<{
+    message: string;
+    installing?: boolean;
+  } | null>(() => import.meta.env.DEV ? null : { message: "Verificando atualizações..." });
+  const skipStartupUpdate = useRef(false);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const quickInputRef = useRef<HTMLInputElement>(null);
 
@@ -106,27 +109,44 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    void invoke<AppMetadata>("get_app_metadata").then(setAppMetadata).catch(() => {
-      // Os metadados são apenas informativos; falhas não devem bloquear a interface.
-    });
-  }, []);
-
-  useEffect(() => {
     let isActive = true;
+    const shouldUpdate = () => isActive && !skipStartupUpdate.current;
 
-    void check({ timeout: 8_000 })
-      .then((update) => {
-        if (isActive) {
-          setAvailableUpdate(update);
-        } else if (update) {
-          void update.close();
+    async function updateOnStartup() {
+      let update: Update | null = null;
+      try {
+        const metadata = await invoke<AppMetadata>("get_app_metadata");
+        if (!isActive) return;
+        setAppMetadata(metadata);
+        if (import.meta.env.DEV || !metadata.installedOnWindows || !shouldUpdate()) return;
+
+        update = await check({ timeout: updateCheckTimeout });
+        if (!update || !shouldUpdate()) return;
+
+        const message = `Baixando atualização ${update.version}`;
+        setStartupUpdate({ message: `${message}...` });
+        let downloadedBytes = 0;
+        await update.download((event) => {
+          if (shouldUpdate() && event.event === "Progress") {
+            downloadedBytes += event.data.chunkLength;
+            setStartupUpdate({ message: `${message} (${Math.round(downloadedBytes / 1024)} KB)...` });
+          }
+        }, { timeout: updateDownloadTimeout });
+
+        if (shouldUpdate()) {
+          setStartupUpdate({ message: "Instalando atualização...", installing: true });
+          // No Windows, o instalador encerra o processo atual e reabre o aplicativo.
+          await update.install({ restartAfterInstall: true });
         }
-      })
-      .catch(() => {
-        // Sem release publicada, modo de desenvolvimento ou rede indisponível:
-        // a interface continua utilizável sem avisos intrusivos.
-      });
+      } catch (reason) {
+        if (shouldUpdate()) console.warn("Não foi possível atualizar na inicialização:", reason);
+      } finally {
+        if (isActive) setStartupUpdate(null);
+        if (update) void update.close().catch(() => {});
+      }
+    }
 
+    void updateOnStartup();
     return () => {
       isActive = false;
     };
@@ -143,7 +163,7 @@ export default function App() {
     window.addEventListener("focus", focusInput);
     focusInput();
     return () => window.removeEventListener("focus", focusInput);
-  }, [layout]);
+  }, [layout, startupUpdate === null]);
 
   useEffect(() => {
     const unregisterQuick = listen("earthtranslate:open-quick", () => {
@@ -202,33 +222,6 @@ export default function App() {
 
   async function hideApplication() {
     await invoke("hide_main_window");
-  }
-
-  async function installAvailableUpdate() {
-    if (!availableUpdate || isUpdating) return;
-
-    setIsUpdating(true);
-    setUpdateProgress("Preparando atualização...");
-    try {
-      let downloadedBytes = 0;
-      await availableUpdate.downloadAndInstall((event) => {
-        if (event.event === "Started") {
-          setUpdateProgress("Baixando atualização...");
-        }
-        if (event.event === "Progress") {
-          downloadedBytes += event.data.chunkLength;
-          setUpdateProgress(`Baixando atualização (${Math.round(downloadedBytes / 1024)} KB)...`);
-        }
-        if (event.event === "Finished") {
-          setUpdateProgress("Instalando atualização...");
-        }
-      });
-      await relaunch();
-    } catch (reason) {
-      setIsUpdating(false);
-      setUpdateProgress("");
-      setError(`Não foi possível instalar a atualização. ${String(reason)}`);
-    }
   }
 
   async function saveSettings() {
@@ -347,17 +340,24 @@ export default function App() {
         </div>
       </header>
       <main className={`app-shell ${layout === "compact" ? "compact-mode" : ""}`}>
-      {layout === "compact" ? (
+      {startupUpdate ? (
+        <section className="startup-update" aria-label="Atualização do EarthTranslate">
+          <p role="status">{startupUpdate.message}</p>
+          {!startupUpdate.installing && (
+            <button className="link-button" type="button" onClick={() => {
+              skipStartupUpdate.current = true;
+              setStartupUpdate(null);
+            }}>
+              Continuar sem atualizar
+            </button>
+          )}
+        </section>
+      ) : layout === "compact" ? (
         <section className="compact-translator">
           <header className="compact-topbar">
             <p className="eyebrow">TRADUÇÃO RÁPIDA</p>
             <button className="icon-button" type="button" aria-label="Abrir configurações" onClick={openSettings}>⚙</button>
           </header>
-          {availableUpdate && (
-            <button className="compact-update-button" type="button" onClick={() => void installAvailableUpdate()} disabled={isUpdating}>
-              {isUpdating ? updateProgress || "Atualizando..." : `Atualizar para ${availableUpdate.version}`}
-            </button>
-          )}
           <div className="compact-language-selects">
             <select aria-label="Idioma de entrada" value={settings.sourceLanguage} onChange={(event) => updateSourceLanguage(event.target.value)}>
               <option value="auto">Detectar idioma</option>
@@ -401,17 +401,6 @@ export default function App() {
         </section>
       ) : (
         <>
-          {availableUpdate && (
-            <section className="update-banner" aria-live="polite">
-              <div>
-                <strong>Atualização {availableUpdate.version} disponível</strong>
-                <span>{availableUpdate.body || `Versão atual: ${availableUpdate.currentVersion}`}</span>
-              </div>
-              <button className="primary-button" type="button" onClick={() => void installAvailableUpdate()} disabled={isUpdating}>
-                {isUpdating ? updateProgress || "Atualizando..." : "Atualizar agora"}
-              </button>
-            </section>
-          )}
           <header className="topbar">
             <div>
               <p className="eyebrow">EARTHTRANSLATE</p>

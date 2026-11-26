@@ -2,7 +2,9 @@
 
 O EarthTranslate verifica a versão mais recente publicada nas [GitHub Releases](https://github.com/gstvoli/EarthTranslate/releases).
 
-Quando uma versão mais nova estiver disponível, o aplicativo exibe uma ação para baixar, validar a assinatura e instalar a atualização. No Windows, o instalador fecha e reinicia o aplicativo automaticamente.
+A partir da versão `0.1.5`, a edição instalada no Windows verifica atualizações antes de abrir o tradutor. Se houver uma versão nova, o aplicativo baixa o pacote, valida a assinatura e executa o instalador em modo silencioso. O instalador fecha e reabre o EarthTranslate automaticamente.
+
+A verificação tem limite de 4 segundos e o download tem limite de 30 segundos. Se houver uma falha, o tradutor abre na versão atual. Também é possível selecionar **Continuar sem atualizar** durante a verificação ou o download.
 
 ## Segurança
 
@@ -13,7 +15,7 @@ Quando uma versão mais nova estiver disponível, o aplicativo exibe uma ação 
 
 ## Publicar uma versão
 
-1. Atualize a versão de forma consistente em `package.json`, `src-tauri/Cargo.toml` e `src-tauri/tauri.conf.json`.
+1. Atualize a versão em `package.json`, `package-lock.json`, `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock` e `src-tauri/tauri.conf.json`.
 2. Faça commit das alterações.
 3. Crie e envie uma tag:
 
@@ -26,4 +28,6 @@ O workflow `.github/workflows/release.yml` gera os instaladores assinados, publi
 
 ## Primeira instalação com atualizador
 
-Versões instaladas antes do `0.1.1` não contêm a chave pública do atualizador. Instale manualmente a primeira versão `0.1.1` ou superior; as versões seguintes poderão ser instaladas pelo aplicativo.
+Se você já usa uma versão instalada entre `0.1.1` e `0.1.4`, use **Atualizar agora** uma última vez. A partir de `0.1.5`, as atualizações seguintes são instaladas na inicialização.
+
+Versões anteriores a `0.1.1` não têm atualizador. Quem usa apenas o executável extraído também deve instalar a edição Windows uma vez para receber atualizações automáticas. O executável portátil não é substituído pelo atualizador: use o novo atalho da edição instalada ou continue trocando o executável portátil manualmente.

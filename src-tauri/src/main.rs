@@ -35,6 +35,7 @@ struct AppMetadata {
     version: String,
     commit: String,
     commit_date: String,
+    installed_on_windows: bool,
 }
 
 #[derive(Deserialize)]
@@ -263,10 +264,15 @@ fn get_shortcut_settings(state: State<AppState>) -> Result<NativeSettings, Strin
 
 #[tauri::command]
 fn get_app_metadata() -> AppMetadata {
+    // O instalador NSIS grava o desinstalador ao lado do executável; o ZIP portátil não.
+    let installed_on_windows = cfg!(windows)
+        && std::env::current_exe()
+            .is_ok_and(|executable| executable.with_file_name("uninstall.exe").is_file());
     AppMetadata {
         version: env!("CARGO_PKG_VERSION").into(),
         commit: env!("EARTHTRANSLATE_COMMIT").into(),
         commit_date: env!("EARTHTRANSLATE_COMMIT_DATE").into(),
+        installed_on_windows,
     }
 }
 
@@ -465,7 +471,6 @@ async fn translate_with_libretranslate(
 
 fn main() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()

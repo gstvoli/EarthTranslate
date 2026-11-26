@@ -28,6 +28,7 @@ export type AppMetadata = {
   version: string;
   commit: string;
   commitDate: string;
+  installedOnWindows: boolean;
 };
 
 export const defaultSettings: Settings = {
