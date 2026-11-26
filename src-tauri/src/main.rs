@@ -117,7 +117,7 @@ fn open_quick_window(app: &AppHandle) {
         return;
     };
 
-    let compact_size = Size::Logical(LogicalSize::new(450.0, 380.0));
+    let compact_size = Size::Logical(LogicalSize::new(520.0, 500.0));
     let _ = window.set_min_size(Some(compact_size.clone()));
     let _ = window.set_max_size(Some(compact_size.clone()));
     let _ = window.set_size(compact_size);
