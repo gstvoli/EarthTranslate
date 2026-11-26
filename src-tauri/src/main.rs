@@ -104,6 +104,8 @@ fn open_standard_window(app: &AppHandle) {
     };
 
     let _ = window.set_resizable(true);
+    let _ = window.set_min_size(Some(Size::Logical(LogicalSize::new(680.0, 510.0))));
+    let _ = window.set_max_size::<Size>(None);
     let _ = window.set_size(Size::Logical(LogicalSize::new(960.0, 590.0)));
     let _ = window.show();
     let _ = window.set_focus();
@@ -115,6 +117,9 @@ fn open_quick_window(app: &AppHandle) {
         return;
     };
 
+    let compact_size = Size::Logical(LogicalSize::new(420.0, 350.0));
+    let _ = window.set_min_size(Some(compact_size.clone()));
+    let _ = window.set_max_size(Some(compact_size.clone()));
     let _ = window.set_size(Size::Logical(LogicalSize::new(420.0, 350.0)));
     let _ = window.set_resizable(false);
     let _ = window.show();

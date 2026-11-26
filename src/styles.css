@@ -7,7 +7,8 @@
 
 * { box-sizing: border-box; }
 
-body { margin: 0; min-width: 680px; min-height: 510px; }
+html, body, #root { height: 100%; overflow: hidden; width: 100%; }
+body { margin: 0; }
 
 button, input, textarea, select { font: inherit; }
 
@@ -15,8 +16,64 @@ button { cursor: pointer; }
 
 button:disabled { cursor: not-allowed; opacity: .48; }
 
+.app-frame {
+  height: 100%;
+  overflow: hidden;
+  width: 100%;
+}
+
+.window-titlebar {
+  align-items: center;
+  background: linear-gradient(90deg, #17362d, #10251f);
+  border-bottom: 1px solid rgba(198, 224, 188, .16);
+  display: flex;
+  height: 36px;
+  justify-content: space-between;
+  user-select: none;
+}
+
+.window-title {
+  align-items: center;
+  color: #dcebd3;
+  display: flex;
+  font-size: .76rem;
+  font-weight: 750;
+  gap: 8px;
+  height: 100%;
+  letter-spacing: .01em;
+  padding-left: 11px;
+}
+
+.window-mark {
+  align-items: center;
+  background: #b9d994;
+  border-radius: 5px;
+  color: #193121;
+  display: inline-flex;
+  font-size: .55rem;
+  height: 19px;
+  justify-content: center;
+  letter-spacing: -.04em;
+  width: 19px;
+}
+
+.window-controls { align-self: stretch; display: flex; }
+.window-controls button {
+  background: transparent;
+  border: 0;
+  color: #dcebd3;
+  font-size: 1rem;
+  height: 36px;
+  line-height: 1;
+  width: 43px;
+}
+.window-controls button:hover { background: rgba(239, 245, 232, .12); }
+.window-controls .window-close:hover { background: #ae3d48; color: #fff; }
+
 .app-shell {
-  min-height: 100vh;
+  height: calc(100% - 36px);
+  min-height: 0;
+  overflow: hidden;
   padding: 32px;
   background:
     radial-gradient(circle at 88% -12%, rgba(106, 165, 112, .28), transparent 33rem),
@@ -222,7 +279,8 @@ textarea::placeholder { color: #6f8476; }
 .link-button { color: #b8d8a5; }
 
 .compact-mode {
-  min-height: 100vh;
+  height: 100%;
+  min-height: 0;
   overflow: hidden;
   padding: 16px;
 }
@@ -231,7 +289,7 @@ textarea::placeholder { color: #6f8476; }
   display: flex;
   flex-direction: column;
   gap: 14px;
-  height: calc(100vh - 32px);
+  height: 100%;
   overflow: hidden;
 }
 
@@ -309,9 +367,10 @@ select, .field input {
   backdrop-filter: blur(7px);
   background: rgba(3, 11, 9, .7);
   display: flex;
-  inset: 0;
+  inset: 36px 0 0;
   justify-content: center;
-  padding: 24px;
+  overflow: auto;
+  padding: 12px;
   position: fixed;
 }
 
@@ -320,17 +379,19 @@ select, .field input {
   border: 1px solid rgba(210, 235, 195, .2);
   border-radius: 18px;
   box-shadow: 0 24px 80px rgba(0,0,0,.42);
+  max-height: calc(100dvh - 60px);
   max-width: 670px;
-  padding: 26px;
+  overflow-y: auto;
+  padding: 18px;
   width: 100%;
 }
 
-.settings-grid { display: grid; gap: 16px; grid-template-columns: 1fr 1fr; margin: 25px 0 16px; }
-.field { color: #c8d8c2; display: flex; flex-direction: column; font-size: .76rem; font-weight: 700; gap: 8px; }
+.settings-grid { display: grid; gap: 12px; grid-template-columns: 1fr 1fr; margin: 17px 0 13px; }
+.field { color: #c8d8c2; display: flex; flex-direction: column; font-size: .76rem; font-weight: 700; gap: 6px; }
 .field-wide { grid-column: 1 / -1; }
 .field input, .field select { width: 100%; }
 .shortcut-input { color: #ccecab !important; font-weight: 700; }
-.settings-note { color: #8fa58d; font-size: .75rem; line-height: 1.5; margin: 0 0 20px; }
+.settings-note { color: #8fa58d; font-size: .72rem; line-height: 1.45; margin: 0 0 13px; }
 .app-metadata {
   border-top: 1px solid rgba(198, 224, 188, .12);
   color: #8fa58d;
@@ -338,14 +399,14 @@ select, .field input {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: .68rem;
   gap: 12px;
-  margin: 0 0 20px;
-  padding-top: 13px;
+  margin: 0 0 13px;
+  padding-top: 10px;
 }
 .modal-actions > div { display: flex; gap: 8px; }
 
 @media (max-width: 720px) {
-  body { min-width: 0; }
-  .app-shell { padding: 22px; }
+  .app-shell { padding: 18px; }
   .translator, .settings-grid { grid-template-columns: 1fr; }
   .panel { min-height: 250px; }
+  .app-metadata { flex-wrap: wrap; gap: 6px 12px; }
 }

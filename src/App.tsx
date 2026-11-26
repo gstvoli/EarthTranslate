@@ -1,6 +1,7 @@
 import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import {
@@ -300,8 +301,31 @@ export default function App() {
     setShowSettings(true);
   }
 
+  async function toggleWindowMaximize() {
+    const appWindow = getCurrentWindow();
+    if (await appWindow.isMaximized()) {
+      await appWindow.unmaximize();
+    } else {
+      await appWindow.maximize();
+    }
+  }
+
   return (
-    <main className={`app-shell ${layout === "compact" ? "compact-mode" : ""}`}>
+    <div className="app-frame">
+      <header className="window-titlebar" data-tauri-drag-region>
+        <div className="window-title" data-tauri-drag-region>
+          <span className="window-mark" data-tauri-drag-region>ET</span>
+          <span data-tauri-drag-region>EarthTranslate</span>
+        </div>
+        <div className="window-controls">
+          <button type="button" aria-label="Minimizar" onClick={() => void getCurrentWindow().minimize()}>−</button>
+          {layout !== "compact" && (
+            <button type="button" aria-label="Maximizar ou restaurar" onClick={() => void toggleWindowMaximize()}>□</button>
+          )}
+          <button className="window-close" type="button" aria-label="Fechar" onClick={() => void getCurrentWindow().close()}>×</button>
+        </div>
+      </header>
+      <main className={`app-shell ${layout === "compact" ? "compact-mode" : ""}`}>
       {layout === "compact" ? (
         <section className="compact-translator">
           <header className="compact-topbar">
@@ -524,6 +548,7 @@ export default function App() {
           </section>
         </div>
       )}
-    </main>
+      </main>
+    </div>
   );
 }
