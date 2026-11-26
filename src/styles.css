@@ -42,6 +42,7 @@ button:disabled { cursor: not-allowed; opacity: .48; }
   height: 100%;
   letter-spacing: .01em;
   padding-left: 11px;
+  -webkit-app-region: drag;
 }
 
 .window-mark {
@@ -57,7 +58,7 @@ button:disabled { cursor: not-allowed; opacity: .48; }
   width: 19px;
 }
 
-.window-controls { align-self: stretch; display: flex; }
+.window-controls { align-self: stretch; display: flex; -webkit-app-region: no-drag; }
 .window-controls button {
   background: transparent;
   border: 0;
@@ -66,6 +67,7 @@ button:disabled { cursor: not-allowed; opacity: .48; }
   height: 36px;
   line-height: 1;
   width: 43px;
+  -webkit-app-region: no-drag;
 }
 .window-controls button:hover { background: rgba(239, 245, 232, .12); }
 .window-controls .window-close:hover { background: #ae3d48; color: #fff; }
@@ -321,6 +323,24 @@ textarea::placeholder { color: #6f8476; }
   gap: 8px;
 }
 
+.compact-language-selects {
+  align-items: center;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+}
+
+.compact-language-selects select {
+  font-size: .7rem;
+  min-width: 0;
+  padding: 6px 7px;
+}
+
+.compact-language-selects span {
+  color: #9dbc94;
+  font-size: .8rem;
+}
+
 .compact-entry input {
   background: #112722;
   border: 1px solid rgba(198, 224, 188, .22);
@@ -380,7 +400,7 @@ select, .field input {
   border-radius: 18px;
   box-shadow: 0 24px 80px rgba(0,0,0,.42);
   max-height: calc(100dvh - 60px);
-  max-width: 670px;
+  max-width: 700px;
   overflow-y: auto;
   padding: 18px;
   width: 100%;

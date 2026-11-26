@@ -11,6 +11,7 @@ export type Settings = {
   translateShortcut: string;
   copyShortcut: string;
   hideShortcut: string;
+  sourceLanguage: string;
   targetLanguage: string;
   provider: TranslationProvider;
   endpoint: string;
@@ -35,6 +36,7 @@ export const defaultSettings: Settings = {
   translateShortcut: "Ctrl+Enter",
   copyShortcut: "Ctrl+Shift+C",
   hideShortcut: "Escape",
+  sourceLanguage: "auto",
   targetLanguage: "pt",
   provider: "mymemory",
   endpoint: providerDefaultEndpoints.mymemory,

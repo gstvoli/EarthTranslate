@@ -1,4 +1,4 @@
-import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, KeyboardEvent, MouseEvent, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -20,6 +20,15 @@ import {
 
 const settingsKey = "earthtranslate.settings";
 type Layout = "standard" | "compact";
+const languageOptions = [
+  { value: "pt", label: "Português" },
+  { value: "en", label: "Inglês" },
+  { value: "es", label: "Espanhol" },
+  { value: "fr", label: "Francês" },
+  { value: "de", label: "Alemão" },
+  { value: "it", label: "Italiano" },
+  { value: "ja", label: "Japonês" },
+];
 
 function loadSettings(): Settings {
   try {
@@ -168,7 +177,7 @@ export default function App() {
       const result = await invoke<TranslationResponse>("translate", {
         request: {
           text: content,
-          source: "auto",
+          source: settings.sourceLanguage,
           target: settings.targetLanguage,
           provider: settings.provider,
           endpoint: settings.endpoint,
@@ -260,6 +269,12 @@ export default function App() {
     localStorage.setItem(settingsKey, JSON.stringify(nextSettings));
   }
 
+  function updateSourceLanguage(sourceLanguage: string) {
+    const nextSettings = { ...settings, sourceLanguage };
+    setSettings(nextSettings);
+    localStorage.setItem(settingsKey, JSON.stringify(nextSettings));
+  }
+
   function updateProvider(provider: TranslationProvider) {
     setDraftSettings({
       ...draftSettings,
@@ -310,10 +325,16 @@ export default function App() {
     }
   }
 
+  function startWindowDrag(event: MouseEvent<HTMLElement>) {
+    if (event.button === 0) {
+      void getCurrentWindow().startDragging();
+    }
+  }
+
   return (
     <div className="app-frame">
-      <header className="window-titlebar" data-tauri-drag-region>
-        <div className="window-title" data-tauri-drag-region>
+      <header className="window-titlebar">
+        <div className="window-title" data-tauri-drag-region onMouseDown={startWindowDrag} onDoubleClick={() => void toggleWindowMaximize()}>
           <span className="window-mark" data-tauri-drag-region>ET</span>
           <span data-tauri-drag-region>EarthTranslate</span>
         </div>
@@ -337,6 +358,16 @@ export default function App() {
               {isUpdating ? updateProgress || "Atualizando..." : `Atualizar para ${availableUpdate.version}`}
             </button>
           )}
+          <div className="compact-language-selects">
+            <select aria-label="Idioma de entrada" value={settings.sourceLanguage} onChange={(event) => updateSourceLanguage(event.target.value)}>
+              <option value="auto">Detectar idioma</option>
+              {languageOptions.map((language) => <option key={language.value} value={language.value}>{language.label}</option>)}
+            </select>
+            <span>→</span>
+            <select aria-label="Idioma de saída" value={settings.targetLanguage} onChange={(event) => updateTargetLanguage(event.target.value)}>
+              {languageOptions.map((language) => <option key={language.value} value={language.value}>{language.label}</option>)}
+            </select>
+          </div>
           <form onSubmit={translate}>
             <div className="compact-entry">
               <input
@@ -393,7 +424,10 @@ export default function App() {
             <section className="panel input-panel">
               <div className="panel-heading">
                 <label htmlFor="source-text">Texto original</label>
-                <span>Detectar idioma</span>
+                <select aria-label="Idioma de entrada" value={settings.sourceLanguage} onChange={(event) => updateSourceLanguage(event.target.value)}>
+                  <option value="auto">Detectar idioma</option>
+                  {languageOptions.map((language) => <option key={language.value} value={language.value}>{language.label}</option>)}
+                </select>
               </div>
               <textarea
                 id="source-text"
@@ -420,13 +454,7 @@ export default function App() {
                   value={settings.targetLanguage}
                   onChange={(event) => updateTargetLanguage(event.target.value)}
                 >
-                  <option value="pt">Português</option>
-                  <option value="en">Inglês</option>
-                  <option value="es">Espanhol</option>
-                  <option value="fr">Francês</option>
-                  <option value="de">Alemão</option>
-                  <option value="it">Italiano</option>
-                  <option value="ja">Japonês</option>
+                  {languageOptions.map((language) => <option key={language.value} value={language.value}>{language.label}</option>)}
                 </select>
               </div>
               <div className={`translation-details ${moreTranslations.length > 0 ? "has-more" : ""}`}>
@@ -494,13 +522,16 @@ export default function App() {
               <ShortcutInput label="Copiar resultado" value={draftSettings.copyShortcut} onChange={(copyShortcut) => setDraftSettings({ ...draftSettings, copyShortcut })} />
               <ShortcutInput label="Ocultar janela" value={draftSettings.hideShortcut} onChange={(hideShortcut) => setDraftSettings({ ...draftSettings, hideShortcut })} />
               <label className="field">
+                <span>Idioma de entrada padrão</span>
+                <select value={draftSettings.sourceLanguage} onChange={(event) => setDraftSettings({ ...draftSettings, sourceLanguage: event.target.value })}>
+                  <option value="auto">Detectar idioma</option>
+                  {languageOptions.map((language) => <option key={language.value} value={language.value}>{language.label}</option>)}
+                </select>
+              </label>
+              <label className="field">
                 <span>Idioma de destino padrão</span>
                 <select value={draftSettings.targetLanguage} onChange={(event) => setDraftSettings({ ...draftSettings, targetLanguage: event.target.value })}>
-                  <option value="pt">Português</option>
-                  <option value="en">Inglês</option>
-                  <option value="es">Espanhol</option>
-                  <option value="fr">Francês</option>
-                  <option value="de">Alemão</option>
+                  {languageOptions.map((language) => <option key={language.value} value={language.value}>{language.label}</option>)}
                 </select>
               </label>
               <label className="field">
