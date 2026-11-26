@@ -23,6 +23,12 @@ export type TranslationResponse = {
   moreTranslations: string[];
 };
 
+export type AppMetadata = {
+  version: string;
+  commit: string;
+  commitDate: string;
+};
+
 export const defaultSettings: Settings = {
   globalShortcut: "Ctrl+Alt+T",
   quickTranslateShortcut: "Ctrl+Alt+Q",

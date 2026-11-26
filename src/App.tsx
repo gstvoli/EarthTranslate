@@ -12,6 +12,7 @@ import {
   defaultSettings,
   providerDefaultEndpoints,
   Settings,
+  AppMetadata,
   TranslationProvider,
   TranslationResponse,
 } from "./types";
@@ -77,6 +78,7 @@ export default function App() {
   const [error, setError] = useState("");
   const [copyFeedback, setCopyFeedback] = useState("");
   const [layout, setLayout] = useState<Layout>("standard");
+  const [appMetadata, setAppMetadata] = useState<AppMetadata>();
   const [availableUpdate, setAvailableUpdate] = useState<Update | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
   const [updateProgress, setUpdateProgress] = useState("");
@@ -91,6 +93,12 @@ export default function App() {
       .catch((reason) => {
         setError(`Não foi possível carregar os atalhos globais: ${String(reason)}`);
       });
+  }, []);
+
+  useEffect(() => {
+    void invoke<AppMetadata>("get_app_metadata").then(setAppMetadata).catch(() => {
+      // Os metadados são apenas informativos; falhas não devem bloquear a interface.
+    });
   }, []);
 
   useEffect(() => {
@@ -499,6 +507,11 @@ export default function App() {
               )}
             </div>
             <p className="settings-note">Clique em um campo de atalho e pressione a nova combinação. Os dois atalhos globais precisam conter ao menos um modificador. MyMemory é gratuito, com limite de 5.000 caracteres por dia e 500 bytes por chamada. A chave do LibreTranslate é armazenada no Gerenciador de Credenciais do Windows, não no navegador local.</p>
+            <div className="app-metadata">
+              <span>Versão {appMetadata?.version ?? "…"}</span>
+              <span>Atualizado em {appMetadata?.commitDate ?? "…"}</span>
+              <span>Commit {appMetadata?.commit ?? "…"}</span>
+            </div>
             <div className="modal-actions">
               <button className="secondary-button" type="button" onClick={() => setDraftSettings(defaultSettings)}>
                 Restaurar padrões

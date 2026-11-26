@@ -25,6 +25,14 @@ struct NativeSettings {
     quick_translate_shortcut: String,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AppMetadata {
+    version: String,
+    commit: String,
+    commit_date: String,
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct TranslationRequest {
@@ -245,6 +253,15 @@ fn get_shortcut_settings(state: State<AppState>) -> Result<NativeSettings, Strin
 }
 
 #[tauri::command]
+fn get_app_metadata() -> AppMetadata {
+    AppMetadata {
+        version: env!("CARGO_PKG_VERSION").into(),
+        commit: env!("EARTHTRANSLATE_COMMIT").into(),
+        commit_date: env!("EARTHTRANSLATE_COMMIT_DATE").into(),
+    }
+}
+
+#[tauri::command]
 fn set_global_shortcuts(
     app: AppHandle,
     state: State<AppState>,
@@ -458,6 +475,7 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            get_app_metadata,
             get_shortcut_settings,
             set_global_shortcuts,
             save_translation_api_key,

@@ -331,6 +331,16 @@ select, .field input {
 .field input, .field select { width: 100%; }
 .shortcut-input { color: #ccecab !important; font-weight: 700; }
 .settings-note { color: #8fa58d; font-size: .75rem; line-height: 1.5; margin: 0 0 20px; }
+.app-metadata {
+  border-top: 1px solid rgba(198, 224, 188, .12);
+  color: #8fa58d;
+  display: flex;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: .68rem;
+  gap: 12px;
+  margin: 0 0 20px;
+  padding-top: 13px;
+}
 .modal-actions > div { display: flex; gap: 8px; }
 
 @media (max-width: 720px) {
