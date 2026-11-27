@@ -297,6 +297,11 @@ fn save_translation_api_key(provider: String, api_key: String) -> Result<(), Str
 }
 
 #[tauri::command]
+fn has_translation_api_key(provider: String) -> bool {
+    translation_api_key(provider.trim()).is_some()
+}
+
+#[tauri::command]
 fn get_shortcut_settings(state: State<AppState>) -> Result<NativeSettings, String> {
     state
         .shortcuts
@@ -624,6 +629,7 @@ fn main() {
             get_shortcut_settings,
             set_global_shortcuts,
             save_translation_api_key,
+            has_translation_api_key,
             hide_main_window,
             translate
         ])

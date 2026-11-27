@@ -80,6 +80,7 @@ export default function App() {
   const [draftSettings, setDraftSettings] = useState<Settings>(settings);
   const [showSettings, setShowSettings] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState("");
+  const [hasSavedApiKey, setHasSavedApiKey] = useState(false);
   const [text, setText] = useState("");
   const [translation, setTranslation] = useState("");
   const [detectedLanguage, setDetectedLanguage] = useState<string>();
@@ -107,6 +108,26 @@ export default function App() {
         setError(`Não foi possível carregar os atalhos globais: ${String(reason)}`);
       });
   }, []);
+
+  useEffect(() => {
+    if (!showSettings || draftSettings.provider === "mymemory") {
+      setHasSavedApiKey(false);
+      return;
+    }
+
+    let isActive = true;
+    void invoke<boolean>("has_translation_api_key", { provider: draftSettings.provider })
+      .then((hasKey) => {
+        if (isActive) setHasSavedApiKey(hasKey);
+      })
+      .catch(() => {
+        if (isActive) setHasSavedApiKey(false);
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [showSettings, draftSettings.provider]);
 
   useEffect(() => {
     let isActive = true;
@@ -238,24 +259,30 @@ export default function App() {
       return;
     }
 
+    let savedApiKey = false;
     try {
-      await invoke("set_global_shortcuts", {
-        globalShortcut: draftSettings.globalShortcut,
-        quickTranslateShortcut: draftSettings.quickTranslateShortcut,
-      });
       if (apiKeyInput.trim()) {
         await invoke("save_translation_api_key", {
           provider: draftSettings.provider,
           apiKey: apiKeyInput.trim(),
         });
+        savedApiKey = true;
+        setHasSavedApiKey(true);
       }
+      await invoke("set_global_shortcuts", {
+        globalShortcut: draftSettings.globalShortcut,
+        quickTranslateShortcut: draftSettings.quickTranslateShortcut,
+      });
       localStorage.setItem(settingsKey, JSON.stringify(draftSettings));
       setSettings(draftSettings);
       setApiKeyInput("");
       setShowSettings(false);
       setError("");
     } catch (reason) {
-      setError(`Os atalhos globais não puderam ser salvos: ${String(reason)}`);
+      const prefix = savedApiKey
+        ? "A chave foi salva no Windows, mas as demais configurações não puderam ser aplicadas"
+        : "Não foi possível salvar as configurações";
+      setError(`${prefix}: ${String(reason)}`);
     }
   }
 
@@ -555,6 +582,11 @@ export default function App() {
                     placeholder="Deixe vazio para manter a chave já salva no Windows"
                     onChange={(event) => setApiKeyInput(event.target.value)}
                   />
+                  <small className="field-hint">
+                    {hasSavedApiKey
+                      ? "Uma chave já está salva com segurança no Windows."
+                      : "Nenhuma chave salva para este provedor."}
+                  </small>
                 </label>
               )}
             </div>
