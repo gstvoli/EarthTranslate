@@ -1,6 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::{fs, path::PathBuf, sync::Mutex, time::Duration};
+use std::{collections::HashMap, fs, path::PathBuf, sync::Mutex, time::Duration};
 
 use keyring::Entry;
 use reqwest::Client;
@@ -20,6 +20,7 @@ const TRANSLATION_REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
 
 struct AppState {
     shortcuts: Mutex<NativeSettings>,
+    api_keys: Mutex<HashMap<String, String>>,
     translation_client: Client,
 }
 
@@ -224,11 +225,14 @@ fn register_shortcuts(app: &AppHandle, shortcuts: &NativeSettings) -> Result<(),
         .map_err(|error| format!("O atalho rápido não está disponível: {error}"))
 }
 
-fn credential_key(user: &str) -> Option<String> {
-    Entry::new(CREDENTIAL_SERVICE, user)
-        .ok()
-        .and_then(|entry| entry.get_password().ok())
-        .filter(|key| !key.trim().is_empty())
+fn credential_key(user: &str) -> Result<Option<String>, String> {
+    let entry = Entry::new(CREDENTIAL_SERVICE, user)
+        .map_err(|error| format!("Não foi possível abrir o cofre de credenciais: {error}"))?;
+    match entry.get_password() {
+        Ok(key) if !key.trim().is_empty() => Ok(Some(key)),
+        Ok(_) | Err(keyring::Error::NoEntry) => Ok(None),
+        Err(error) => Err(format!("Não foi possível ler a chave salva no Windows: {error}")),
+    }
 }
 
 fn credential_user_for_provider(provider: &str) -> Option<&'static str> {
@@ -239,15 +243,28 @@ fn credential_user_for_provider(provider: &str) -> Option<&'static str> {
     }
 }
 
-fn translation_api_key(provider: &str) -> Option<String> {
-    let user = credential_user_for_provider(provider)?;
-    credential_key(user).or_else(|| {
-        if provider == "libretranslate" {
-            credential_key(LEGACY_CREDENTIAL_USER)
-        } else {
-            None
-        }
-    })
+fn translation_api_key(state: &AppState, provider: &str) -> Result<Option<String>, String> {
+    if let Some(key) = state
+        .api_keys
+        .lock()
+        .map_err(|_| "Não foi possível acessar a chave de API em memória.".to_string())?
+        .get(provider)
+        .cloned()
+    {
+        return Ok(Some(key));
+    }
+
+    let Some(user) = credential_user_for_provider(provider) else {
+        return Ok(None);
+    };
+    if let Some(key) = credential_key(user)? {
+        return Ok(Some(key));
+    }
+    if provider == "libretranslate" {
+        credential_key(LEGACY_CREDENTIAL_USER)
+    } else {
+        Ok(None)
+    }
 }
 
 fn split_match_translations(
@@ -281,7 +298,11 @@ fn split_match_translations(
 }
 
 #[tauri::command]
-fn save_translation_api_key(provider: String, api_key: String) -> Result<(), String> {
+fn save_translation_api_key(
+    state: State<AppState>,
+    provider: String,
+    api_key: String,
+) -> Result<(), String> {
     if api_key.trim().is_empty() {
         return Err("Informe uma chave de API para salvá-la.".into());
     }
@@ -293,12 +314,24 @@ fn save_translation_api_key(provider: String, api_key: String) -> Result<(), Str
         .map_err(|error| format!("Não foi possível abrir o cofre de credenciais: {error}"))?;
     entry
         .set_password(api_key.trim())
-        .map_err(|error| format!("Não foi possível salvar a chave de API: {error}"))
+        .map_err(|error| format!("Não foi possível salvar a chave de API: {error}"))?;
+    let saved_key = entry
+        .get_password()
+        .map_err(|error| format!("A chave foi gravada, mas não pôde ser confirmada: {error}"))?;
+    if saved_key.trim() != api_key.trim() {
+        return Err("A chave foi gravada, mas a confirmação do cofre falhou.".into());
+    }
+    state
+        .api_keys
+        .lock()
+        .map_err(|_| "Não foi possível manter a chave de API na sessão atual.".to_string())?
+        .insert(provider, saved_key);
+    Ok(())
 }
 
 #[tauri::command]
-fn has_translation_api_key(provider: String) -> bool {
-    translation_api_key(provider.trim()).is_some()
+fn has_translation_api_key(state: State<AppState>, provider: String) -> Result<bool, String> {
+    Ok(translation_api_key(&state, provider.trim())?.is_some())
 }
 
 #[tauri::command]
@@ -392,9 +425,9 @@ async fn translate(
     match request.provider.as_str() {
         "mymemory" => translate_with_mymemory(&state.translation_client, &request).await,
         "libretranslate" => {
-            translate_with_libretranslate(&state.translation_client, &request).await
+            translate_with_libretranslate(&state, &request).await
         }
-        "googlecloud" => translate_with_google_cloud(&state.translation_client, &request).await,
+        "googlecloud" => translate_with_google_cloud(&state, &request).await,
         _ => Err("O provedor de tradução selecionado não é suportado.".into()),
     }
 }
@@ -468,7 +501,7 @@ async fn translate_with_mymemory(
 }
 
 async fn translate_with_libretranslate(
-    client: &Client,
+    state: &AppState,
     request: &TranslationRequest,
 ) -> Result<TranslationResponse, String> {
     let endpoint = if request.endpoint.trim().is_empty() {
@@ -482,11 +515,12 @@ async fn translate_with_libretranslate(
         "target": request.target,
         "format": "text"
     });
-    if let Some(api_key) = translation_api_key("libretranslate") {
+    if let Some(api_key) = translation_api_key(state, "libretranslate")? {
         body["api_key"] = json!(api_key);
     }
 
-    let response = client
+    let response = state
+        .translation_client
         .post(endpoint)
         .json(&body)
         .send()
@@ -519,10 +553,10 @@ async fn translate_with_libretranslate(
 }
 
 async fn translate_with_google_cloud(
-    client: &Client,
+    state: &AppState,
     request: &TranslationRequest,
 ) -> Result<TranslationResponse, String> {
-    let api_key = translation_api_key("googlecloud").ok_or_else(|| {
+    let api_key = translation_api_key(state, "googlecloud")?.ok_or_else(|| {
         "Cadastre uma chave do Google Cloud Translation nas configurações antes de traduzir."
             .to_string()
     })?;
@@ -540,7 +574,8 @@ async fn translate_with_google_cloud(
         body["source"] = json!(request.source);
     }
 
-    let response = client
+    let response = state
+        .translation_client
         .post(endpoint)
         .query(&[("key", api_key)])
         .json(&body)
@@ -620,6 +655,7 @@ fn main() {
             register_shortcuts(app.handle(), &shortcuts).map_err(std::io::Error::other)?;
             app.manage(AppState {
                 shortcuts: Mutex::new(shortcuts),
+                api_keys: Mutex::new(HashMap::new()),
                 translation_client,
             });
             Ok(())
