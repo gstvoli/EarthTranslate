@@ -1,6 +1,6 @@
 [package]
 name = "earthtranslate"
-version = "0.1.5"
+version = "0.1.6"
 description = "Aplicativo desktop para tradução rápida"
 authors = ["EarthTranslate"]
 edition = "2021"
