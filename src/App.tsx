@@ -22,13 +22,13 @@ type Layout = "standard" | "compact";
 const updateCheckTimeout = 4_000;
 const updateDownloadTimeout = 30_000;
 const languageOptions = [
-  { value: "pt", label: "Português" },
-  { value: "en", label: "Inglês" },
-  { value: "es", label: "Espanhol" },
-  { value: "fr", label: "Francês" },
-  { value: "de", label: "Alemão" },
-  { value: "it", label: "Italiano" },
-  { value: "ja", label: "Japonês" },
+  { value: "pt", label: "Português", shortLabel: "PT" },
+  { value: "en", label: "Inglês", shortLabel: "EN" },
+  { value: "es", label: "Espanhol", shortLabel: "ES" },
+  { value: "fr", label: "Francês", shortLabel: "FR" },
+  { value: "de", label: "Alemão", shortLabel: "DE" },
+  { value: "it", label: "Italiano", shortLabel: "IT" },
+  { value: "ja", label: "Japonês", shortLabel: "JA" },
 ];
 
 function loadSettings(): Settings {
@@ -360,12 +360,12 @@ export default function App() {
           </header>
           <div className="compact-language-selects">
             <select aria-label="Idioma de entrada" value={settings.sourceLanguage} onChange={(event) => updateSourceLanguage(event.target.value)}>
-              <option value="auto">Detectar idioma</option>
-              {languageOptions.map((language) => <option key={language.value} value={language.value}>{language.label}</option>)}
+              <option value="auto">AUTO</option>
+              {languageOptions.map((language) => <option key={language.value} value={language.value}>{language.shortLabel}</option>)}
             </select>
             <span>→</span>
             <select aria-label="Idioma de saída" value={settings.targetLanguage} onChange={(event) => updateTargetLanguage(event.target.value)}>
-              {languageOptions.map((language) => <option key={language.value} value={language.value}>{language.label}</option>)}
+              {languageOptions.map((language) => <option key={language.value} value={language.value}>{language.shortLabel}</option>)}
             </select>
           </div>
           <form onSubmit={translate}>
@@ -375,7 +375,7 @@ export default function App() {
                 value={text}
                 onChange={(event) => setText(event.target.value)}
                 onKeyDown={handleEditorKeyDown}
-                placeholder="Digite uma palavra..."
+                placeholder="Palavra ou frase..."
                 aria-label="Texto para traduzir"
               />
               <button className="primary-button" type="submit" disabled={!text.trim() || isTranslating}>

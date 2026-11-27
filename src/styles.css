@@ -40,11 +40,13 @@ button:disabled { cursor: not-allowed; opacity: .48; }
   align-items: center;
   color: #dcebd3;
   display: flex;
+  flex: 1;
   font-size: .76rem;
   font-weight: 750;
   gap: 8px;
   height: 100%;
   letter-spacing: .01em;
+  min-width: 0;
   padding-left: 11px;
   -webkit-app-region: drag;
 }
@@ -283,13 +285,13 @@ textarea::placeholder { color: #6f8476; }
 .compact-mode {
   min-height: 0;
   overflow: hidden;
-  padding: 20px;
+  padding: 16px;
 }
 
 .compact-translator {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
   height: 100%;
   overflow: hidden;
 }
@@ -316,9 +318,10 @@ textarea::placeholder { color: #6f8476; }
 }
 
 .compact-language-selects select {
-  font-size: .7rem;
+  font-size: .72rem;
+  font-weight: 800;
   min-width: 0;
-  padding: 6px 7px;
+  padding: 5px 7px;
 }
 
 .compact-language-selects span {
@@ -334,7 +337,7 @@ textarea::placeholder { color: #6f8476; }
   flex: 1;
   min-width: 0;
   outline: none;
-  padding: 12px;
+  padding: 9px 11px;
 }
 
 .compact-entry input:focus { border-color: #b9d994; box-shadow: 0 0 0 3px rgba(185, 217, 148, .13); }
@@ -344,14 +347,14 @@ textarea::placeholder { color: #6f8476; }
   border: 1px solid rgba(198, 224, 188, .14);
   border-radius: 12px;
   display: flex;
-  flex: 1;
+  flex: 0 1 90px;
   flex-direction: column;
   justify-content: space-between;
-  min-height: 0;
-  padding: 14px;
+  min-height: 72px;
+  padding: 10px 12px;
 }
 
-.compact-result output { color: #eff5e8; font-size: 1.05rem; line-height: 1.35; overflow: hidden; }
+.compact-result output { color: #eff5e8; display: block; font-size: .95rem; line-height: 1.35; overflow: hidden; overflow-wrap: anywhere; }
 .compact-alternatives { color: #b7d3a5; font-size: .73rem; line-height: 1.35; margin: 8px 0 0; overflow: hidden; }
 .compact-result .text-button { align-self: flex-end; margin: 4px -8px -6px; }
 .compact-footer { align-items: center; color: #94a890; display: flex; font-size: .7rem; justify-content: space-between; }
@@ -415,6 +418,7 @@ select, .field input {
 
 @media (max-width: 720px) {
   .app-shell { padding: 18px; }
+  .app-shell.compact-mode { padding: 16px; }
   .translator, .settings-grid { grid-template-columns: 1fr; }
   .panel { min-height: 250px; }
   .app-metadata { flex-wrap: wrap; gap: 6px 12px; }
