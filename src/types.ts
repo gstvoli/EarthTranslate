@@ -1,8 +1,9 @@
-export type TranslationProvider = "mymemory" | "libretranslate";
+export type TranslationProvider = "mymemory" | "libretranslate" | "googlecloud";
 
 export const providerDefaultEndpoints: Record<TranslationProvider, string> = {
   mymemory: "https://api.mymemory.translated.net/get",
   libretranslate: "https://libretranslate.com/translate",
+  googlecloud: "https://translation.googleapis.com/language/translate/v2",
 };
 
 export type Settings = {

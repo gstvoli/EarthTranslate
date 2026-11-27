@@ -57,4 +57,28 @@ Content-Type: application/json
 
 O endpoint público do LibreTranslate atualmente exige chave de API. Sem ela, ele retorna `400 Bad Request` com a mensagem para criar uma chave no portal do LibreTranslate.
 
+## Google Cloud Translation — API com cobrança por uso
+
+Ative a **Cloud Translation API** no projeto do Google Cloud e cadastre uma chave
+de API nas configurações do EarthTranslate. A chave é armazenada no Gerenciador
+de Credenciais do Windows, separadamente da chave do LibreTranslate.
+
+```http
+POST https://translation.googleapis.com/language/translate/v2?key=CHAVE_GUARDADA_NO_WINDOWS
+Content-Type: application/json
+```
+
+```json
+{
+  "q": "Hello, world!",
+  "target": "pt",
+  "format": "text"
+}
+```
+
+Quando o idioma de entrada é selecionado manualmente, o EarthTranslate também
+envia `source`. Para detecção automática, esse campo é omitido conforme a API
+do Google requer. Restrinja a chave no Google Cloud à Cloud Translation API e
+acompanhe a cobrança e as cotas do projeto.
+
 Textos enviados para qualquer provedor deixam o computador. Não use o serviço gratuito para conteúdo confidencial.

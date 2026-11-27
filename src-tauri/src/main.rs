@@ -12,7 +12,9 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 const DEFAULT_GLOBAL_SHORTCUT: &str = "Ctrl+Alt+T";
 const DEFAULT_QUICK_TRANSLATE_SHORTCUT: &str = "Ctrl+Alt+Q";
 const CREDENTIAL_SERVICE: &str = "EarthTranslate";
-const CREDENTIAL_USER: &str = "translation-api-key";
+const LEGACY_CREDENTIAL_USER: &str = "translation-api-key";
+const LIBRETRANSLATE_CREDENTIAL_USER: &str = "translation-api-key-libretranslate";
+const GOOGLE_CLOUD_CREDENTIAL_USER: &str = "translation-api-key-googlecloud";
 const TRANSLATION_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 const TRANSLATION_REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
 
@@ -80,6 +82,25 @@ struct MyMemoryData {
 #[derive(Deserialize)]
 struct MyMemoryMatch {
     translation: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GoogleTranslationResponse {
+    data: GoogleTranslationData,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GoogleTranslationData {
+    translations: Vec<GoogleTranslation>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GoogleTranslation {
+    translated_text: String,
+    detected_source_language: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -203,11 +224,30 @@ fn register_shortcuts(app: &AppHandle, shortcuts: &NativeSettings) -> Result<(),
         .map_err(|error| format!("O atalho rápido não está disponível: {error}"))
 }
 
-fn translation_api_key() -> Option<String> {
-    Entry::new(CREDENTIAL_SERVICE, CREDENTIAL_USER)
+fn credential_key(user: &str) -> Option<String> {
+    Entry::new(CREDENTIAL_SERVICE, user)
         .ok()
         .and_then(|entry| entry.get_password().ok())
         .filter(|key| !key.trim().is_empty())
+}
+
+fn credential_user_for_provider(provider: &str) -> Option<&'static str> {
+    match provider {
+        "libretranslate" => Some(LIBRETRANSLATE_CREDENTIAL_USER),
+        "googlecloud" => Some(GOOGLE_CLOUD_CREDENTIAL_USER),
+        _ => None,
+    }
+}
+
+fn translation_api_key(provider: &str) -> Option<String> {
+    let user = credential_user_for_provider(provider)?;
+    credential_key(user).or_else(|| {
+        if provider == "libretranslate" {
+            credential_key(LEGACY_CREDENTIAL_USER)
+        } else {
+            None
+        }
+    })
 }
 
 fn split_match_translations(
@@ -241,12 +281,15 @@ fn split_match_translations(
 }
 
 #[tauri::command]
-fn save_translation_api_key(api_key: String) -> Result<(), String> {
+fn save_translation_api_key(provider: String, api_key: String) -> Result<(), String> {
     if api_key.trim().is_empty() {
         return Err("Informe uma chave de API para salvá-la.".into());
     }
 
-    let entry = Entry::new(CREDENTIAL_SERVICE, CREDENTIAL_USER)
+    let user = credential_user_for_provider(provider.trim()).ok_or_else(|| {
+        "O provedor selecionado não usa chave de API ou não é suportado.".to_string()
+    })?;
+    let entry = Entry::new(CREDENTIAL_SERVICE, user)
         .map_err(|error| format!("Não foi possível abrir o cofre de credenciais: {error}"))?;
     entry
         .set_password(api_key.trim())
@@ -346,6 +389,7 @@ async fn translate(
         "libretranslate" => {
             translate_with_libretranslate(&state.translation_client, &request).await
         }
+        "googlecloud" => translate_with_google_cloud(&state.translation_client, &request).await,
         _ => Err("O provedor de tradução selecionado não é suportado.".into()),
     }
 }
@@ -433,7 +477,7 @@ async fn translate_with_libretranslate(
         "target": request.target,
         "format": "text"
     });
-    if let Some(api_key) = translation_api_key() {
+    if let Some(api_key) = translation_api_key("libretranslate") {
         body["api_key"] = json!(api_key);
     }
 
@@ -464,6 +508,67 @@ async fn translate_with_libretranslate(
     Ok(TranslationResponse {
         translated_text: payload.translated_text,
         detected_language: payload.detected_language.map(|language| language.language),
+        alternative_translations: Vec::new(),
+        more_translations: Vec::new(),
+    })
+}
+
+async fn translate_with_google_cloud(
+    client: &Client,
+    request: &TranslationRequest,
+) -> Result<TranslationResponse, String> {
+    let api_key = translation_api_key("googlecloud").ok_or_else(|| {
+        "Cadastre uma chave do Google Cloud Translation nas configurações antes de traduzir."
+            .to_string()
+    })?;
+    let endpoint = if request.endpoint.trim().is_empty() {
+        "https://translation.googleapis.com/language/translate/v2"
+    } else {
+        request.endpoint.trim()
+    };
+    let mut body = json!({
+        "q": request.text,
+        "target": request.target,
+        "format": "text"
+    });
+    if request.source != "auto" && !request.source.trim().is_empty() {
+        body["source"] = json!(request.source);
+    }
+
+    let response = client
+        .post(endpoint)
+        .query(&[("key", api_key)])
+        .json(&body)
+        .send()
+        .await
+        .map_err(|error| {
+            translation_http_error(error, "Não foi possível alcançar o Google Cloud Translation")
+        })?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let details = response.text().await.unwrap_or_default();
+        return Err(format!(
+            "O Google Cloud Translation retornou o status {status}. {details}",
+        ));
+    }
+
+    let payload = response
+        .json::<GoogleTranslationResponse>()
+        .await
+        .map_err(|error| {
+            translation_http_error(error, "Resposta inválida do Google Cloud Translation")
+        })?;
+    let translation = payload
+        .data
+        .translations
+        .into_iter()
+        .next()
+        .ok_or_else(|| "O Google Cloud Translation não retornou uma tradução.".to_string())?;
+
+    Ok(TranslationResponse {
+        translated_text: translation.translated_text,
+        detected_language: translation.detected_source_language,
         alternative_translations: Vec::new(),
         more_translations: Vec::new(),
     })

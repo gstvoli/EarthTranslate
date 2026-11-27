@@ -24,7 +24,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' https://libretranslate.com; style-src 'self' 'unsafe-inline'"
+      "csp": "default-src 'self'; connect-src 'self' https://libretranslate.com https://translation.googleapis.com; style-src 'self' 'unsafe-inline'"
     }
   },
   "bundle": {

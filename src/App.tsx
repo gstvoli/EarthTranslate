@@ -244,7 +244,10 @@ export default function App() {
         quickTranslateShortcut: draftSettings.quickTranslateShortcut,
       });
       if (apiKeyInput.trim()) {
-        await invoke("save_translation_api_key", { apiKey: apiKeyInput.trim() });
+        await invoke("save_translation_api_key", {
+          provider: draftSettings.provider,
+          apiKey: apiKeyInput.trim(),
+        });
       }
       localStorage.setItem(settingsKey, JSON.stringify(draftSettings));
       setSettings(draftSettings);
@@ -531,26 +534,31 @@ export default function App() {
                 >
                   <option value="mymemory">MyMemory — gratuito</option>
                   <option value="libretranslate">LibreTranslate — requer chave</option>
+                  <option value="googlecloud">Google Cloud Translation — requer chave</option>
                 </select>
               </label>
               <label className="field field-wide">
                 <span>Endpoint do provedor</span>
                 <input value={draftSettings.endpoint} onChange={(event) => setDraftSettings({ ...draftSettings, endpoint: event.target.value })} />
               </label>
-              {draftSettings.provider === "libretranslate" && (
+              {draftSettings.provider !== "mymemory" && (
                 <label className="field field-wide">
-                  <span>Chave de API LibreTranslate</span>
+                  <span>
+                    {draftSettings.provider === "googlecloud"
+                      ? "Chave de API do Google Cloud Translation"
+                      : "Chave de API LibreTranslate"}
+                  </span>
                   <input
                     type="password"
                     value={apiKeyInput}
                     autoComplete="off"
-                    placeholder="Deixe vazio para manter a chave já salva"
+                    placeholder="Deixe vazio para manter a chave já salva no Windows"
                     onChange={(event) => setApiKeyInput(event.target.value)}
                   />
                 </label>
               )}
             </div>
-            <p className="settings-note">Clique em um campo de atalho e pressione a nova combinação. Os dois atalhos globais precisam conter ao menos um modificador. MyMemory é gratuito, com limite de 5.000 caracteres por dia e 500 bytes por chamada. A chave do LibreTranslate é armazenada no Gerenciador de Credenciais do Windows, não no navegador local.</p>
+            <p className="settings-note">Clique em um campo de atalho e pressione a nova combinação. Os dois atalhos globais precisam conter ao menos um modificador. MyMemory é gratuito, com limite de 5.000 caracteres por dia e 500 bytes por chamada. As chaves do LibreTranslate e do Google Cloud Translation são armazenadas separadamente no Gerenciador de Credenciais do Windows, nunca no navegador local.</p>
             <div className="app-metadata">
               <span>Versão {appMetadata?.version ?? "…"}</span>
               <span>Atualizado em {appMetadata?.commitDate ?? "…"}</span>
